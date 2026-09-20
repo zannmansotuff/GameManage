@@ -1,0 +1,19 @@
+# Node & Dependencies
+node_modules/
+dist/
+.cache/
+
+# Cloudflare Wrangler & D1 Local State
+.wrangler/
+.mf/
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
