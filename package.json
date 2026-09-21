@@ -1,0 +1,20 @@
+{
+  "name": "game-manage",
+  "version": "1.0.0",
+  "description": "Multi-game score and match tracker with Cloudflare Workers & D1",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote"
+  },
+  "dependencies": {
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241022.0",
+    "typescript": "^5.6.3",
+    "wrangler": "^3.83.0"
+  }
+}

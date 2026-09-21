@@ -1,0 +1,15 @@
+name = "game-manage"
+main = "src/index.ts"
+compatibility_date = "2024-04-01"
+account_id = "0670e378996063545ff0ad390205019a"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "game-scores-db"
+database_id = "f77a49e5-f09e-4556-8fa8-b7dab4fab2dc"
+
+# Serve the vanilla frontend directly from Cloudflare Worker
+[assets]
+directory = "./public"
+binding = "ASSETS"
+run_worker_first = true

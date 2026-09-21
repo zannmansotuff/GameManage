@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Game Score Hub - Multi-Game Tracker</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <!-- Top Navigation Bar -->
+  <header class="navbar">
+    <div class="nav-brand">
+      <span class="logo-icon">🎮</span>
+      <span class="logo-text">GameScore<strong>Hub</strong></span>
+    </div>
+
+    <div class="nav-controls" id="navControls" style="display: none;">
+      <div class="select-wrapper">
+        <label for="gameSelect" class="sr-only">Select Game</label>
+        <select id="gameSelect" class="game-dropdown">
+          <option value="">Loading games...</option>
+        </select>
+      </div>
+
+      <button id="btnOpenNewMatch" class="btn btn-primary">+ Log Match Result</button>
+      <button id="btnOpenNewGame" class="btn btn-secondary">+ New Game</button>
+
+      <div class="user-profile">
+        <span id="navUsername" class="nav-user">Player</span>
+        <button id="btnLogout" class="btn btn-ghost btn-sm">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Auto-Refresh & Status Bar -->
+  <div class="status-bar" id="statusBar" style="display: none;">
+    <div class="status-left">
+      <span class="indicator-dot"></span>
+      <span id="timerText">Next auto-refresh in 05:00</span>
+    </div>
+    <button id="btnManualRefresh" class="btn btn-ghost btn-xs">↻ Refresh Now</button>
+  </div>
+
+  <!-- Main Content Dashboard -->
+  <main class="main-container" id="mainContainer">
+    <!-- Auth Required State -->
+    <div id="authScreen" class="auth-card">
+      <div class="auth-header">
+        <h2 id="authTitle">Sign In to GameScoreHub</h2>
+        <p>Log match results, analyze player stats, and track records across your games.</p>
+      </div>
+
+      <form id="authForm" class="auth-form">
+        <div id="usernameGroup" class="form-group" style="display: none;">
+          <label for="authUsername">Username</label>
+          <input type="text" id="authUsername" placeholder="e.g. Alex" autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="authEmail">Email</label>
+          <input type="email" id="authEmail" placeholder="your@email.com" required autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="authPassword">Password</label>
+          <input type="password" id="authPassword" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+
+        <div id="authError" class="alert alert-error" style="display: none;"></div>
+
+        <button type="submit" id="btnAuthSubmit" class="btn btn-primary btn-block">Sign In</button>
+      </form>
+
+      <div class="auth-footer">
+        <span id="authToggleText">Don't have an account?</span>
+        <button id="btnAuthToggle" class="link-btn">Create one</button>
+      </div>
+    </div>
+
+    <!-- Dashboard View (When Logged In) -->
+    <div id="dashboardView" style="display: none;">
+      <!-- Active Game Banner -->
+      <section class="game-banner">
+        <div class="game-info">
+          <div class="game-title-row">
+            <h1 id="activeGameTitle">Select or Create a Game</h1>
+            <span id="activeGameBadge" class="badge">Board</span>
+          </div>
+          <p id="activeGameMeta" class="game-meta">Scoring rule: Highest Wins</p>
+        </div>
+      </section>
+
+      <!-- Leaderboard / Stats Section -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>🏆 Leaderboard & Player Stats</h2>
+        </div>
+        <div class="table-responsive">
+          <table class="data-table" id="leaderboardTable">
+            <thead id="leaderboardHead">
+              <!-- Dynamically populated headers based on category -->
+            </thead>
+            <tbody id="leaderboardBody">
+              <tr><td colspan="6" class="text-center">No player records recorded yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Recent Matches Feed -->
+      <section class="section-card">
+        <div class="section-header">
+          <h2>📜 Match Records History</h2>
+        </div>
+        <div id="matchesList" class="matches-list">
+          <div class="empty-state">No matches logged yet. Click "+ Log Match Result" to record your first game!</div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <!-- Modal: Log Completed Match -->
+  <div id="matchModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-header">
+        <h3>Log Completed Match Record</h3>
+        <button class="modal-close" data-close="matchModal">&times;</button>
+      </div>
+      <form id="matchForm">
+        <div class="modal-body">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="matchGameSelect">Game</label>
+              <select id="matchGameSelect" required></select>
+            </div>
+            <div class="form-group flex-1">
+              <label>Category</label>
+              <span id="modalCategoryBadge" class="badge-display">Board</span>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="matchTitle">Match Title / Map / Session (Optional)</label>
+              <input type="text" id="matchTitle" placeholder="e.g. Ascent Competitive or Friday Game Night">
+            </div>
+            <div class="form-group flex-1">
+              <label for="matchOutcome">Outcome / Status</label>
+              <select id="matchOutcome">
+                <option value="completed">Completed</option>
+                <option value="win">Team Victory</option>
+                <option value="loss">Defeat</option>
+                <option value="draw">Draw</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="matchPlayedAt">Date & Time Played</label>
+              <input type="datetime-local" id="matchPlayedAt" required>
+            </div>
+            <div class="form-group flex-2">
+              <label for="matchNotes">Notes / Highlights (Optional)</label>
+              <input type="text" id="matchNotes" placeholder="e.g. 4-player game, Longest road contest">
+            </div>
+          </div>
+
+          <hr class="divider">
+
+          <div class="section-sub-header">
+            <h4>Player Results</h4>
+            <span class="sub-help" id="playerInputsHelp">Fields adapted for game type</span>
+          </div>
+
+          <!-- Dynamic Players Table -->
+          <div class="table-responsive">
+            <table class="input-table" id="matchPlayersTable">
+              <thead id="matchPlayersHead">
+                <!-- Dynamically populated header -->
+              </thead>
+              <tbody id="matchPlayersBody">
+                <!-- Dynamically populated player rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <button type="button" id="btnAddPlayerRow" class="btn btn-secondary btn-sm mt-2">+ Add Another Player</button>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close="matchModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Match Record</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Create New Game -->
+  <div id="gameModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>Create New Game</h3>
+        <button class="modal-close" data-close="gameModal">&times;</button>
+      </div>
+      <form id="gameForm">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="newGameName">Game Name</label>
+            <input type="text" id="newGameName" placeholder="e.g. Valorant, Catan, D&D Campaign" required>
+          </div>
+          <div class="form-group">
+            <label for="newGameCategory">Game Category</label>
+            <select id="newGameCategory" required>
+              <option value="fps">FPS (First-Person Shooter: Kills, Deaths, Assists)</option>
+              <option value="board" selected>Board Game (Points, Money, Rank)</option>
+              <option value="rpg">RPG (Character, Class, Level, XP, Gold)</option>
+              <option value="custom">Custom / General Points</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="newGameScoring">Scoring Rule</label>
+            <select id="newGameScoring">
+              <option value="highest_wins" selected>Highest Score Wins (Points, Kills)</option>
+              <option value="lowest_wins">Lowest Score Wins (Golf, Lap time, Rank)</option>
+              <option value="coop">Cooperative / Quest (Team win or lose)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close="gameModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Game</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
