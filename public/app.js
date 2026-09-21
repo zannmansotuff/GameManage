@@ -228,6 +228,13 @@ async function refreshGameData() {
     state.stats = statsRes.stats || [];
     state.matches = matchesRes.matches || [];
 
+    // Update known players datalist for autocomplete
+    const knownList = document.getElementById('knownPlayersList');
+    if (knownList && state.stats) {
+      const playerNames = new Set(state.stats.map(s => s.player_name));
+      knownList.innerHTML = [...playerNames].map(name => `<option value="${escapeHtml(name)}">`).join('');
+    }
+
     renderLeaderboard();
     renderMatchesList();
   } catch (err) {
@@ -380,7 +387,10 @@ function renderMatchesList() {
             <span class="match-card-title">${escapeHtml(m.title || 'Match Record')}</span>
             ${outcomeBadge}
           </div>
-          <span class="match-card-date">${dateStr}</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <span class="match-card-date">${dateStr}</span>
+            <button class="btn btn-ghost btn-xs btn-delete-match" data-id="${m.id}" style="color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2);" title="Delete match record">🗑️</button>
+          </div>
         </div>
         ${m.notes ? `<p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;">${escapeHtml(m.notes)}</p>` : ''}
         <div class="match-players-feed">
@@ -389,6 +399,21 @@ function renderMatchesList() {
       </div>
     `;
   }).join('');
+
+  // Wire up delete handlers
+  document.querySelectorAll('.btn-delete-match').forEach((btn) => {
+    btn.addEventListener('click', async (e) => {
+      const matchId = e.currentTarget.getAttribute('data-id');
+      if (confirm('Are you sure you want to delete this match record? This cannot be undone.')) {
+        try {
+          await api(`/matches/${matchId}`, { method: 'DELETE' });
+          await refreshGameData();
+        } catch (err) {
+          alert(`Failed to delete match: ${err.message}`);
+        }
+      }
+    });
+  });
 }
 
 // ==========================================
@@ -514,7 +539,7 @@ function addPlayerRow(category) {
   if (category === 'fps') {
     tr.innerHTML = `
       <td>${rowCount}</td>
-      <td><input type="text" class="p-name" placeholder="Player ${rowCount}" required></td>
+      <td><input type="text" class="p-name" placeholder="Player ${rowCount}" list="knownPlayersList" required></td>
       <td><input type="number" class="p-kills" min="0" value="0"></td>
       <td><input type="number" class="p-deaths" min="0" value="0"></td>
       <td><input type="number" class="p-assists" min="0" value="0"></td>
@@ -525,7 +550,7 @@ function addPlayerRow(category) {
   } else if (category === 'rpg') {
     tr.innerHTML = `
       <td>${rowCount}</td>
-      <td><input type="text" class="p-name" placeholder="Hero Name" required></td>
+      <td><input type="text" class="p-name" placeholder="Hero Name" list="knownPlayersList" required></td>
       <td><input type="text" class="p-rpg-class" placeholder="e.g. Mage/Tank"></td>
       <td><input type="number" class="p-rpg-level" min="1" value="1"></td>
       <td><input type="number" class="p-rpg-xp" placeholder="XP" value="0"></td>
@@ -535,7 +560,7 @@ function addPlayerRow(category) {
   } else {
     tr.innerHTML = `
       <td>${rowCount}</td>
-      <td><input type="text" class="p-name" placeholder="Player ${rowCount}" required></td>
+      <td><input type="text" class="p-name" placeholder="Player ${rowCount}" list="knownPlayersList" required></td>
       <td><input type="number" class="p-score" step="any" value="0" required></td>
       <td><input type="number" class="p-money" placeholder="$" step="any"></td>
       <td><input type="number" class="p-rank" min="1" value="${rowCount}"></td>
@@ -642,6 +667,20 @@ document.querySelectorAll('[data-close]').forEach((btn) => {
     const m = document.getElementById(modalId);
     if (m) m.style.display = 'none';
   });
+});
+
+// Delete Game
+document.getElementById('btnDeleteGame')?.addEventListener('click', async () => {
+  if (!state.selectedGame) return;
+  if (confirm(`Are you sure you want to delete "${state.selectedGame.name}" and all its match history?`)) {
+    try {
+      await api(`/games/${state.selectedGame.id}`, { method: 'DELETE' });
+      state.selectedGame = null;
+      await loadGames();
+    } catch (err) {
+      alert(`Failed to delete game: ${err.message}`);
+    }
+  }
 });
 
 function escapeHtml(str) {
