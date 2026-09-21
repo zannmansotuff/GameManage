@@ -342,4 +342,12 @@ app.get('/api/stats', async (c) => {
   return c.json({ game, stats: formattedStats });
 });
 
+// Fallback to static assets (HTML/CSS/JS)
+app.get('*', async (c) => {
+  if (c.env.ASSETS) {
+    return await c.env.ASSETS.fetch(c.req.raw);
+  }
+  return c.text('Not Found', 404);
+});
+
 export default app;
