@@ -4,7 +4,11 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 
-:root {
+/* ============================================
+   DARK MODE (default)
+   ============================================ */
+:root,
+[data-theme="dark"] {
   --bg-main: #0d0f1a;
   --bg-card: #141826;
   --bg-card-2: #1a2035;
@@ -27,6 +31,70 @@
   --radius-lg: 18px;
   --shadow: 0 8px 32px rgba(0,0,0,0.5);
   --shadow-sm: 0 2px 12px rgba(0,0,0,0.3);
+  --body-bg-1: rgba(108,99,255,0.2);
+  --body-bg-2: rgba(255,107,157,0.14);
+  --body-bg-3: rgba(0,212,255,0.09);
+  --navbar-bg-1: rgba(20,24,38,0.97);
+  --navbar-bg-2: rgba(26,32,53,0.97);
+  --navbar-border: rgba(108,99,255,0.25);
+  --auth-card-bg-1: rgba(22,27,48,0.98);
+  --auth-card-bg-2: rgba(18,22,42,0.98);
+  --auth-card-border: rgba(108,99,255,0.4);
+  --modal-bg-1: #141826;
+  --modal-bg-2: #111526;
+  --game-banner-bg-1: rgba(108,99,255,0.18);
+  --game-banner-bg-2: rgba(20,24,38,0.9);
+  --game-banner-bg-3: rgba(255,107,157,0.1);
+  --game-banner-border: rgba(108,99,255,0.3);
+  --match-card-bg-1: rgba(26,32,53,0.85);
+  --match-card-bg-2: rgba(20,24,38,0.7);
+  --table-th-bg: rgba(13,15,26,0.6);
+  --theme-icon: "🌙";
+}
+
+/* ============================================
+   LIGHT MODE
+   ============================================ */
+[data-theme="light"] {
+  --bg-main: #f0f2ff;
+  --bg-card: #ffffff;
+  --bg-card-2: #f8f6ff;
+  --bg-input: #eef0ff;
+  --bg-hover: #e4e6ff;
+  --text-main: #1a1a2e;
+  --text-muted: #5a5a8a;
+  --text-dim: #9090b8;
+  --primary: #6c63ff;
+  --primary-hover: #5a52e0;
+  --primary-glow: rgba(108,99,255,0.2);
+  --pink: #ff6b9d;
+  --cyan: #00a8cc;
+  --yellow: #e6a817;
+  --green: #05a87e;
+  --orange: #e08010;
+  --border: rgba(108,99,255,0.12);
+  --border-bright: rgba(108,99,255,0.22);
+  --shadow: 0 8px 32px rgba(108,99,255,0.15);
+  --shadow-sm: 0 2px 12px rgba(108,99,255,0.1);
+  --body-bg-1: rgba(108,99,255,0.07);
+  --body-bg-2: rgba(255,107,157,0.05);
+  --body-bg-3: rgba(0,212,255,0.04);
+  --navbar-bg-1: rgba(255,255,255,0.96);
+  --navbar-bg-2: rgba(248,246,255,0.96);
+  --navbar-border: rgba(108,99,255,0.2);
+  --auth-card-bg-1: rgba(255,255,255,0.98);
+  --auth-card-bg-2: rgba(248,246,255,0.98);
+  --auth-card-border: rgba(108,99,255,0.3);
+  --modal-bg-1: #ffffff;
+  --modal-bg-2: #f8f6ff;
+  --game-banner-bg-1: rgba(108,99,255,0.08);
+  --game-banner-bg-2: rgba(255,255,255,0.9);
+  --game-banner-bg-3: rgba(255,107,157,0.05);
+  --game-banner-border: rgba(108,99,255,0.2);
+  --match-card-bg-1: rgba(255,255,255,0.95);
+  --match-card-bg-2: rgba(248,246,255,0.8);
+  --table-th-bg: rgba(240,238,255,0.8);
+  --theme-icon: "☀️";
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -35,25 +103,26 @@ body {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-main);
   background-image:
-    radial-gradient(ellipse 70% 50% at 20% 10%, rgba(108,99,255,0.2) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 90%, rgba(255,107,157,0.14) 0%, transparent 60%),
-    radial-gradient(ellipse 50% 30% at 90% 20%, rgba(0,212,255,0.09) 0%, transparent 50%);
+    radial-gradient(ellipse 70% 50% at 20% 10%, var(--body-bg-1) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 40% at 80% 90%, var(--body-bg-2) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 30% at 90% 20%, var(--body-bg-3) 0%, transparent 50%);
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
   font-size: 15px;
   line-height: 1.5;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ============================================
    NAVBAR
    ============================================ */
 .navbar {
-  background: linear-gradient(135deg, rgba(20,24,38,0.97) 0%, rgba(26,32,53,0.97) 100%);
+  background: linear-gradient(135deg, var(--navbar-bg-1) 0%, var(--navbar-bg-2) 100%);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(108,99,255,0.25);
+  border-bottom: 1px solid var(--navbar-border);
   padding: 0.8rem 1.75rem;
   display: flex;
   align-items: center;
@@ -64,6 +133,7 @@ body {
   top: 0;
   z-index: 50;
   box-shadow: 0 2px 24px rgba(108,99,255,0.12);
+  transition: background 0.3s ease;
 }
 
 .nav-brand {
@@ -223,8 +293,8 @@ body {
 .auth-card {
   max-width: 440px;
   margin: 0 auto;
-  background: linear-gradient(150deg, rgba(22,27,48,0.98) 0%, rgba(18,22,42,0.98) 100%);
-  border: 1px solid rgba(108,99,255,0.4);
+  background: linear-gradient(150deg, var(--auth-card-bg-1) 0%, var(--auth-card-bg-2) 100%);
+  border: 1px solid var(--auth-card-border);
   border-radius: var(--radius-lg);
   padding: 2.5rem 2.25rem;
   box-shadow:
@@ -237,6 +307,7 @@ body {
   z-index: 1;
   margin-top: 3rem;
   margin-bottom: 3rem;
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 /* Animated rainbow top border */
@@ -298,7 +369,27 @@ body {
   line-height: 1.6;
 }
 
-.auth-form { display: flex; flex-direction: column; gap: 0; }
+/* Light mode overrides for gradient text */
+[data-theme="light"] .auth-header h2 {
+  background: linear-gradient(135deg, #6c63ff, #d946ef, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .game-title-row h1 {
+  background: linear-gradient(135deg, #4c3fcc, #2d1b69);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+[data-theme="light"] .nav-user {
+  background: linear-gradient(135deg, #6c63ff, #3b82f6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
 
 .auth-footer {
   text-align: center;
@@ -314,16 +405,17 @@ body {
    ============================================ */
 .game-banner {
   background: linear-gradient(135deg,
-    rgba(108,99,255,0.18) 0%,
-    rgba(20,24,38,0.9) 50%,
-    rgba(255,107,157,0.1) 100%);
-  border: 1px solid rgba(108,99,255,0.3);
+    var(--game-banner-bg-1) 0%,
+    var(--game-banner-bg-2) 50%,
+    var(--game-banner-bg-3) 100%);
+  border: 1px solid var(--game-banner-border);
   border-radius: var(--radius-lg);
   padding: 1.5rem 1.75rem;
   margin-bottom: 1.5rem;
   box-shadow: 0 0 40px rgba(108,99,255,0.08), inset 0 1px 0 rgba(255,255,255,0.06);
   position: relative;
   overflow: hidden;
+  transition: background 0.3s ease;
 }
 
 .game-banner::before {
@@ -578,7 +670,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 0.75rem 1rem;
-  background: rgba(13,15,26,0.6);
+  background: var(--table-th-bg);
   border-bottom: 1px solid var(--border);
 }
 
@@ -599,11 +691,11 @@ body {
 .matches-list { display: flex; flex-direction: column; gap: 0.9rem; }
 
 .match-card {
-  background: linear-gradient(135deg, rgba(26,32,53,0.85), rgba(20,24,38,0.7));
+  background: linear-gradient(135deg, var(--match-card-bg-1), var(--match-card-bg-2));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 1.1rem 1.3rem;
-  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s, background 0.3s;
   position: relative;
   overflow: hidden;
 }
@@ -737,7 +829,7 @@ body {
 }
 
 .modal-dialog {
-  background: linear-gradient(150deg, #141826, #111526);
+  background: linear-gradient(150deg, var(--modal-bg-1), var(--modal-bg-2));
   border: 1px solid rgba(108,99,255,0.35);
   border-radius: var(--radius-lg);
   width: 100%;
@@ -749,6 +841,7 @@ body {
   animation: slide-up 0.2s ease;
   position: relative;
   overflow: hidden;
+  transition: background 0.3s ease;
 }
 
 .modal-dialog::before {
@@ -902,6 +995,23 @@ body {
   border-radius: var(--radius);
   font-size: 0.85rem;
   margin-bottom: 1rem;
+}
+
+/* ============================================
+   THEME TOGGLE BUTTON
+   ============================================ */
+.theme-toggle {
+  font-size: 1.1rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--border-bright) !important;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+.theme-toggle:hover {
+  background: var(--bg-input) !important;
+  border-color: rgba(108,99,255,0.4) !important;
+  transform: rotate(20deg) scale(1.1);
 }
 
 /* ============================================

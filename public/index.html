@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,6 +17,9 @@
       <span class="logo-text">GameScore<strong>Hub</strong></span>
     </div>
 
+    <!-- Theme toggle always visible -->
+    <button id="btnThemeToggleAuth" class="btn btn-ghost btn-sm theme-toggle" title="Toggle light/dark mode" style="margin-left:auto;">🌙</button>
+
     <div class="nav-controls" id="navControls" style="display: none;">
       <div class="select-wrapper">
         <label for="gameSelect" class="sr-only">Select Game</label>
@@ -31,6 +34,7 @@
       <div class="user-profile">
         <span id="navUsername" class="nav-user">Player</span>
         <span id="adminBadge" class="badge" style="background:#ef4444; color:#fff; font-size:0.65rem; display:none;">ADMIN</span>
+        <button id="btnThemeToggle" class="btn btn-ghost btn-sm theme-toggle" title="Toggle light/dark mode">🌙</button>
         <button id="btnLogout" class="btn btn-ghost btn-sm">Logout</button>
       </div>
     </div>

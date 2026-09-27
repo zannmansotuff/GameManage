@@ -41,6 +41,29 @@ const matchPlayersHead = document.getElementById('matchPlayersHead');
 const matchPlayersBody = document.getElementById('matchPlayersBody');
 
 // ==========================================
+// THEME TOGGLE (Light / Dark)
+// ==========================================
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('gsh_theme', theme);
+  const icon = theme === 'dark' ? '🌙' : '☀️';
+  document.querySelectorAll('.theme-toggle').forEach(btn => btn.textContent = icon);
+}
+
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+}
+
+// Apply saved theme on load
+applyTheme(localStorage.getItem('gsh_theme') || 'dark');
+
+document.querySelectorAll('.theme-toggle').forEach(btn => {
+  btn.addEventListener('click', toggleTheme);
+});
+
+// ==========================================
 // 1. API Client
 // ==========================================
 
