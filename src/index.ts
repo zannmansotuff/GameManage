@@ -84,25 +84,50 @@ app.post('/api/auth/login', async (c) => {
   const { email, password } = body;
 
   if (!email || !password) {
-    return c.json({ error: 'Email and password are required' }, 400);
+    return c.json({ error: 'Email or Username and password are required' }, 400);
+  }
+
+  const queryIdentifier = email.trim().toLowerCase();
+
+  // Auto-seed admin account if logging in as admin and not yet created
+  if (queryIdentifier === 'admin' || queryIdentifier === 'admin@gamemanage.com') {
+    const existingAdmin = await c.env.DB.prepare(
+      "SELECT id FROM users WHERE LOWER(username) = 'admin' OR LOWER(email) = 'admin@gamemanage.com'"
+    ).first();
+
+    if (!existingAdmin) {
+      const adminId = crypto.randomUUID();
+      const adminHash = await hashPassword('1234567');
+      await c.env.DB.prepare(
+        "INSERT INTO users (id, email, password_hash, username) VALUES (?, ?, ?, ?)"
+      ).bind(adminId, 'admin@gamemanage.com', adminHash, 'admin').run();
+    }
   }
 
   try {
     const user: any = await c.env.DB.prepare(
-      'SELECT id, email, password_hash, username FROM users WHERE email = ?'
-    ).bind(email.toLowerCase()).first();
+      'SELECT id, email, password_hash, username FROM users WHERE LOWER(email) = ? OR LOWER(username) = ?'
+    ).bind(queryIdentifier, queryIdentifier).first();
 
     if (!user) {
-      return c.json({ error: 'Invalid email or password' }, 401);
+      return c.json({ error: 'Invalid email/username or password' }, 401);
     }
 
     const valid = await verifyPassword(password, user.password_hash);
     if (!valid) {
-      return c.json({ error: 'Invalid email or password' }, 401);
+      return c.json({ error: 'Invalid email/username or password' }, 401);
     }
 
     const token = await signJWT({ id: user.id, email: user.email, username: user.username });
-    return c.json({ token, user: { id: user.id, email: user.email, username: user.username } });
+    return c.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        is_admin: user.username.toLowerCase() === 'admin'
+      }
+    });
   } catch (err: any) {
     return c.json({ error: 'Login failed', details: err.message }, 500);
   }
@@ -111,19 +136,20 @@ app.post('/api/auth/login', async (c) => {
 // Me (Verify session)
 app.get('/api/auth/me', (c) => {
   const user = c.get('user');
-  return c.json({ user });
+  return c.json({
+    user: user ? { ...user, is_admin: user.username.toLowerCase() === 'admin' } : null
+  });
 });
 
 // ----------------------------------------------------
-// 2. GAMES CATALOG ROUTES
+// 2. GAMES CATALOG ROUTES (SHARED ACROSS ALL USERS)
 // ----------------------------------------------------
 
-// List user games
+// List all games
 app.get('/api/games', async (c) => {
-  const user = c.get('user')!;
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM games WHERE user_id = ? ORDER BY created_at DESC'
-  ).bind(user.id).all();
+    'SELECT * FROM games ORDER BY created_at DESC'
+  ).all();
 
   return c.json({ games: results });
 });
@@ -146,29 +172,31 @@ app.post('/api/games', async (c) => {
   return c.json({ game: { id, user_id: user.id, name: name.trim(), category, scoring_type } }, 201);
 });
 
-// Delete game
+// Delete game (ADMIN ONLY)
 app.delete('/api/games/:id', async (c) => {
   const user = c.get('user')!;
-  const id = c.req.param('id');
+  if (user.username.toLowerCase() !== 'admin') {
+    return c.json({ error: 'Forbidden: Only the admin account can delete games' }, 403);
+  }
 
-  await c.env.DB.prepare('DELETE FROM games WHERE id = ? AND user_id = ?').bind(id, user.id).run();
+  const id = c.req.param('id');
+  await c.env.DB.prepare('DELETE FROM games WHERE id = ?').bind(id).run();
   return c.json({ success: true });
 });
 
 // ----------------------------------------------------
-// 3. MATCH RECORDS ROUTES (POST-GAME LOGGING)
+// 3. MATCH RECORDS ROUTES (SHARED ACROSS ALL USERS)
 // ----------------------------------------------------
 
 // Get matches (optional filter by game_id)
 app.get('/api/matches', async (c) => {
-  const user = c.get('user')!;
   const gameId = c.req.query('game_id');
 
-  let query = 'SELECT m.*, g.name as game_name, g.category as game_category, g.scoring_type FROM matches m JOIN games g ON m.game_id = g.id WHERE m.user_id = ?';
-  const params: any[] = [user.id];
+  let query = 'SELECT m.*, m.user_id as match_owner_id, g.name as game_name, g.category as game_category, g.scoring_type, u.username as logged_by FROM matches m JOIN games g ON m.game_id = g.id LEFT JOIN users u ON m.user_id = u.id';
+  const params: any[] = [];
 
   if (gameId) {
-    query += ' AND m.game_id = ?';
+    query += ' WHERE m.game_id = ?';
     params.push(gameId);
   }
   query += ' ORDER BY m.played_at DESC LIMIT 50';
@@ -213,9 +241,9 @@ app.post('/api/matches', async (c) => {
     return c.json({ error: 'At least one player is required' }, 400);
   }
 
-  // Verify game ownership
-  const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ? AND user_id = ?')
-    .bind(game_id, user.id).first();
+  // Verify game exists
+  const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?')
+    .bind(game_id).first();
   if (!game) {
     return c.json({ error: 'Game not found' }, 404);
   }
@@ -226,12 +254,10 @@ app.post('/api/matches', async (c) => {
   // Sort and rank players based on scoring_type or category
   const sortedPlayers = [...players];
   if (game.category === 'fps') {
-    // Sort by Kills or K/D ratio or custom score
     sortedPlayers.sort((a, b) => (b.score || (b.kills - b.deaths)) - (a.score || (a.kills - a.deaths)));
   } else if (game.scoring_type === 'lowest_wins') {
     sortedPlayers.sort((a, b) => Number(a.score || 0) - Number(b.score || 0));
   } else {
-    // default highest wins
     sortedPlayers.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
   }
 
@@ -272,34 +298,73 @@ app.post('/api/matches', async (c) => {
   return c.json({ success: true, match_id: matchId }, 201);
 });
 
-// Delete match
+// Delete match (owner or admin)
 app.delete('/api/matches/:id', async (c) => {
   const user = c.get('user')!;
   const id = c.req.param('id');
 
-  await c.env.DB.prepare('DELETE FROM matches WHERE id = ? AND user_id = ?').bind(id, user.id).run();
+  const match: any = await c.env.DB.prepare('SELECT user_id FROM matches WHERE id = ?').bind(id).first();
+  if (!match) {
+    return c.json({ error: 'Match not found' }, 404);
+  }
+
+  const isAdmin = user.username.toLowerCase() === 'admin';
+  const isOwner = match.user_id === user.id;
+
+  if (!isAdmin && !isOwner) {
+    return c.json({ error: 'Forbidden: You can only delete your own match records' }, 403);
+  }
+
+  await c.env.DB.prepare('DELETE FROM match_players WHERE match_id = ?').bind(id).run();
+  await c.env.DB.prepare('DELETE FROM matches WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// Update match title/notes/outcome (owner or admin)
+app.put('/api/matches/:id', async (c) => {
+  const user = c.get('user')!;
+  const id = c.req.param('id');
+
+  const match: any = await c.env.DB.prepare('SELECT user_id FROM matches WHERE id = ?').bind(id).first();
+  if (!match) {
+    return c.json({ error: 'Match not found' }, 404);
+  }
+
+  const isAdmin = user.username.toLowerCase() === 'admin';
+  const isOwner = match.user_id === user.id;
+
+  if (!isAdmin && !isOwner) {
+    return c.json({ error: 'Forbidden: You can only edit your own match records' }, 403);
+  }
+
+  const body = await c.req.json().catch(() => ({}));
+  const { title, notes, match_outcome } = body;
+
+  await c.env.DB.prepare(
+    'UPDATE matches SET title = ?, notes = ?, match_outcome = ? WHERE id = ?'
+  ).bind(title || null, notes || null, match_outcome || null, id).run();
+
   return c.json({ success: true });
 });
 
 // ----------------------------------------------------
-// 4. LEADERBOARD & STATS ROUTE
+// 4. LEADERBOARD & STATS ROUTE (SHARED ACROSS ALL PLAYERS)
 // ----------------------------------------------------
 
 app.get('/api/stats', async (c) => {
-  const user = c.get('user')!;
   const gameId = c.req.query('game_id');
 
   if (!gameId) {
     return c.json({ error: 'game_id query param is required' }, 400);
   }
 
-  const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ? AND user_id = ?')
-    .bind(gameId, user.id).first();
+  const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?')
+    .bind(gameId).first();
   if (!game) {
     return c.json({ error: 'Game not found' }, 404);
   }
 
-  // Aggregate stats per player
+  // Aggregate stats across all players who played this game
   const query = `
     SELECT 
       mp.player_name,
@@ -314,12 +379,12 @@ app.get('/api/stats', async (c) => {
       SUM(mp.money) as total_money
     FROM match_players mp
     JOIN matches m ON mp.match_id = m.id
-    WHERE m.game_id = ? AND m.user_id = ?
+    WHERE m.game_id = ?
     GROUP BY mp.player_name
     ORDER BY wins DESC, avg_score DESC
   `;
 
-  const { results } = await c.env.DB.prepare(query).bind(gameId, user.id).all();
+  const { results } = await c.env.DB.prepare(query).bind(gameId).all();
 
   const formattedStats = results.map((row: any) => {
     const played = Number(row.matches_played || 0);

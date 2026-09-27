@@ -30,6 +30,7 @@
 
       <div class="user-profile">
         <span id="navUsername" class="nav-user">Player</span>
+        <span id="adminBadge" class="badge" style="background:#ef4444; color:#fff; font-size:0.65rem; display:none;">ADMIN</span>
         <button id="btnLogout" class="btn btn-ghost btn-sm">Logout</button>
       </div>
     </div>
@@ -54,13 +55,13 @@
       </div>
 
       <form id="authForm" class="auth-form">
-        <div id="usernameGroup" class="form-group" style="display: none;">
-          <label for="authUsername">Username</label>
-          <input type="text" id="authUsername" placeholder="e.g. Alex" autocomplete="username">
-        </div>
         <div class="form-group">
-          <label for="authEmail">Email</label>
-          <input type="email" id="authEmail" placeholder="your@email.com" required autocomplete="email">
+          <label for="authUsername">Username</label>
+          <input type="text" id="authUsername" placeholder="e.g. Alex" required autocomplete="username">
+        </div>
+        <div id="authEmailGroup" class="form-group" style="display: none;">
+          <label for="authEmail">Email <span class="label-optional">(optional)</span></label>
+          <input type="email" id="authEmail" placeholder="your@email.com" autocomplete="email">
         </div>
         <div class="form-group">
           <label for="authPassword">Password</label>
@@ -230,13 +231,49 @@
             <select id="newGameScoring">
               <option value="highest_wins" selected>Highest Score Wins (Points, Kills)</option>
               <option value="lowest_wins">Lowest Score Wins (Golf, Lap time, Rank)</option>
-              <option value="coop">Cooperative / Quest (Team win or lose)</option>
             </select>
           </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close="gameModal">Cancel</button>
           <button type="submit" class="btn btn-primary">Create Game</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Edit Match -->
+  <div id="editMatchModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3>✏️ Edit Match Record</h3>
+        <button class="modal-close" data-close="editMatchModal">&times;</button>
+      </div>
+      <form id="editMatchForm">
+        <input type="hidden" id="editMatchId">
+        <div class="modal-body">
+          <div class="form-group">
+            <label for="editMatchTitle">Match Title</label>
+            <input type="text" id="editMatchTitle" placeholder="e.g. Friday Game Night">
+          </div>
+          <div class="form-group">
+            <label for="editMatchOutcome">Outcome / Status</label>
+            <select id="editMatchOutcome">
+              <option value="completed">Completed</option>
+              <option value="win">Team Victory</option>
+              <option value="loss">Defeat</option>
+              <option value="draw">Draw</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="editMatchNotes">Notes / Highlights</label>
+            <input type="text" id="editMatchNotes" placeholder="e.g. 4-player game, close finish">
+          </div>
+          <div id="editMatchError" class="alert alert-error" style="display:none;"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-ghost" data-close="editMatchModal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Changes</button>
         </div>
       </form>
     </div>

@@ -74,7 +74,7 @@ let isSignUpMode = false;
 const authForm = document.getElementById('authForm');
 const authTitle = document.getElementById('authTitle');
 const authError = document.getElementById('authError');
-const usernameGroup = document.getElementById('usernameGroup');
+const authEmailGroup = document.getElementById('authEmailGroup');
 const btnAuthSubmit = document.getElementById('btnAuthSubmit');
 const btnAuthToggle = document.getElementById('btnAuthToggle');
 const authToggleText = document.getElementById('authToggleText');
@@ -86,20 +86,31 @@ btnAuthToggle.addEventListener('click', (e) => {
   btnAuthSubmit.textContent = isSignUpMode ? 'Sign Up' : 'Sign In';
   authToggleText.textContent = isSignUpMode ? 'Already have an account?' : "Don't have an account?";
   btnAuthToggle.textContent = isSignUpMode ? 'Sign In' : 'Create one';
-  usernameGroup.style.display = isSignUpMode ? 'block' : 'none';
+  // Show email field only on sign-up (optional)
+  authEmailGroup.style.display = isSignUpMode ? 'block' : 'none';
   authError.style.display = 'none';
 });
 
 authForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   authError.style.display = 'none';
-  const email = document.getElementById('authEmail').value;
+  const username = document.getElementById('authUsername').value.trim();
   const password = document.getElementById('authPassword').value;
-  const username = document.getElementById('authUsername').value;
+  const email = isSignUpMode ? (document.getElementById('authEmail').value.trim() || `${username}@gamemanage.local`) : username;
+
+  if (!username) {
+    authError.textContent = 'Username is required.';
+    authError.style.display = 'block';
+    return;
+  }
 
   try {
     const endpoint = isSignUpMode ? '/auth/register' : '/auth/login';
-    const payload = isSignUpMode ? { email, password, username } : { email, password };
+    // For login, send username in the email field (backend accepts username OR email)
+    const payload = isSignUpMode
+      ? { email, password, username }
+      : { email: username, password };
+
     const res = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
 
     state.token = res.token;
@@ -145,6 +156,13 @@ async function initDashboard() {
     const meRes = await api('/auth/me');
     state.user = meRes.user;
     navUsername.textContent = state.user.username;
+
+    const isAdmin = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
+    const adminBadge = document.getElementById('adminBadge');
+    if (adminBadge) adminBadge.style.display = isAdmin ? 'inline-block' : 'none';
+
+    const btnDeleteGame = document.getElementById('btnDeleteGame');
+    if (btnDeleteGame) btnDeleteGame.style.display = isAdmin ? 'inline-block' : 'none';
 
     await loadGames();
     startAutoRefreshTimer();
@@ -249,7 +267,6 @@ async function refreshGameData() {
 function renderLeaderboard() {
   const category = state.selectedGame.category;
 
-  // Build Headers dynamically based on category
   if (category === 'fps') {
     leaderboardHead.innerHTML = `
       <tr>
@@ -275,7 +292,6 @@ function renderLeaderboard() {
       </tr>
     `;
   } else {
-    // Board Game or Custom
     leaderboardHead.innerHTML = `
       <tr>
         <th>Rank</th>
@@ -295,42 +311,42 @@ function renderLeaderboard() {
   }
 
   leaderboardBody.innerHTML = state.stats.map((row, idx) => {
-    const medal = idx === 0 ? '🥇 ' : idx === 1 ? '🥈 ' : idx === 2 ? '🥉 ' : `#${idx + 1} `;
+    const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
 
     if (category === 'fps') {
       return `
         <tr>
-          <td><strong>${medal}</strong></td>
+          <td><span class="rank-cell">${medal}</span></td>
           <td><strong>${escapeHtml(row.player_name)}</strong></td>
-          <td>${row.matches_played} (${row.wins}W - ${row.matches_played - row.wins}L)</td>
+          <td>${row.matches_played} <span class="stat-sub">(${row.wins}W / ${row.matches_played - row.wins}L)</span></td>
           <td>${row.total_kills || 0} / ${row.total_deaths || 0}</td>
           <td><span class="badge badge-fps">${row.kd_ratio}</span></td>
           <td>${row.total_assists || 0}</td>
-          <td>${row.win_rate}%</td>
+          <td><span class="win-rate-pill">${row.win_rate}%</span></td>
         </tr>
       `;
     } else if (category === 'rpg') {
       return `
         <tr>
-          <td><strong>${medal}</strong></td>
+          <td><span class="rank-cell">${medal}</span></td>
           <td><strong>${escapeHtml(row.player_name)}</strong></td>
           <td>${row.matches_played}</td>
           <td>${row.wins} Cleared</td>
           <td>${(row.total_kills || 0) > 0 ? row.total_kills.toLocaleString() : row.avg_score}</td>
-          <td>${row.total_money ? `$${Number(row.total_money).toLocaleString()}` : '-'}</td>
-          <td>${row.win_rate}%</td>
+          <td>${row.total_money ? `$${Number(row.total_money).toLocaleString()}` : '—'}</td>
+          <td><span class="win-rate-pill">${row.win_rate}%</span></td>
         </tr>
       `;
     } else {
       return `
         <tr>
-          <td><strong>${medal}</strong></td>
+          <td><span class="rank-cell">${medal}</span></td>
           <td><strong>${escapeHtml(row.player_name)}</strong></td>
           <td>${row.matches_played}</td>
           <td>${row.wins} Wins</td>
           <td>${row.avg_score}</td>
-          <td>${row.avg_money ? `$${Number(row.avg_money).toLocaleString()}` : '-'}</td>
-          <td>${row.win_rate}%</td>
+          <td>${row.avg_money ? `$${Number(row.avg_money).toLocaleString()}` : '—'}</td>
+          <td><span class="win-rate-pill">${row.win_rate}%</span></td>
         </tr>
       `;
     }
@@ -358,41 +374,57 @@ function renderMatchesList() {
       let statSummary = '';
       if (category === 'fps') {
         const kd = p.deaths > 0 ? (p.kills / p.deaths).toFixed(2) : p.kills;
-        statSummary = `${p.kills ?? 0} Kills | ${p.deaths ?? 0} Deaths | ${p.assists ?? 0} Assists (${kd} K/D)`;
+        statSummary = `${p.kills ?? 0} Kills / ${p.deaths ?? 0} Deaths / ${p.assists ?? 0} Assists <span class="stat-sub">(${kd} K/D)</span>`;
       } else if (category === 'rpg') {
         const extra = p.extra_stats || {};
         const charInfo = extra.character ? `${extra.character} (${extra.class || 'Adventurer'})` : '';
         const xpGold = [extra.xp ? `+${extra.xp} XP` : '', extra.gold ? `${extra.gold} Gold` : ''].filter(Boolean).join(', ');
         statSummary = [charInfo, xpGold, p.notes].filter(Boolean).join(' • ');
       } else {
-        const moneyStr = p.money ? ` | $${Number(p.money).toLocaleString()}` : '';
+        const moneyStr = p.money ? ` <span class="stat-sub">| $${Number(p.money).toLocaleString()}</span>` : '';
         statSummary = `${p.score} pts${moneyStr}`;
       }
 
-      const winnerBadge = p.is_winner ? '🏆 [Winner] ' : '';
+      const isWinner = p.is_winner;
       return `
-        <div class="match-player-line ${p.is_winner ? 'match-player-winner' : ''}">
-          <span><strong>${winnerBadge}${escapeHtml(p.player_name)}</strong></span>
-          <span>${statSummary}</span>
+        <div class="match-player-line ${isWinner ? 'match-player-winner' : ''}">
+          <span class="player-name-cell">
+            ${isWinner ? '<span class="winner-crown">🏆</span>' : '<span class="player-dot"></span>'}
+            <strong>${escapeHtml(p.player_name)}</strong>
+          </span>
+          <span class="player-stat">${statSummary}</span>
         </div>
       `;
     }).join('');
 
-    const outcomeBadge = m.match_outcome ? `<span class="badge">${m.match_outcome.toUpperCase()}</span>` : '';
+    const outcomeBadge = m.match_outcome ? `<span class="outcome-badge outcome-${m.match_outcome}">${m.match_outcome.toUpperCase()}</span>` : '';
+    const loggedByHtml = m.logged_by ? `<span class="logged-by">by ${escapeHtml(m.logged_by)}</span>` : '';
+
+    const isAdmin = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
+    const isOwner = state.user && m.match_owner_id === state.user.id;
+    const canModify = isAdmin || isOwner;
+
+    const actionBtns = canModify ? `
+      <div class="match-actions">
+        <button class="btn-icon btn-edit-match" data-id="${m.id}" data-title="${escapeHtml(m.title || '')}" data-notes="${escapeHtml(m.notes || '')}" data-outcome="${m.match_outcome || 'completed'}" title="Edit match">✏️</button>
+        <button class="btn-icon btn-delete-match" data-id="${m.id}" title="Delete match">🗑️</button>
+      </div>
+    ` : '';
 
     return `
       <div class="match-card">
         <div class="match-card-header">
-          <div>
+          <div class="match-card-meta">
             <span class="match-card-title">${escapeHtml(m.title || 'Match Record')}</span>
             ${outcomeBadge}
+            ${loggedByHtml}
           </div>
-          <div style="display: flex; align-items: center; gap: 0.75rem;">
-            <span class="match-card-date">${dateStr}</span>
-            <button class="btn btn-ghost btn-xs btn-delete-match" data-id="${m.id}" style="color: #f87171; border: 1px solid rgba(239, 68, 68, 0.2);" title="Delete match record">🗑️</button>
+          <div class="match-card-right">
+            <span class="match-card-date">📅 ${dateStr}</span>
+            ${actionBtns}
           </div>
         </div>
-        ${m.notes ? `<p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:0.5rem;">${escapeHtml(m.notes)}</p>` : ''}
+        ${m.notes ? `<p class="match-notes">${escapeHtml(m.notes)}</p>` : ''}
         <div class="match-players-feed">
           ${playersHtml}
         </div>
@@ -404,7 +436,7 @@ function renderMatchesList() {
   document.querySelectorAll('.btn-delete-match').forEach((btn) => {
     btn.addEventListener('click', async (e) => {
       const matchId = e.currentTarget.getAttribute('data-id');
-      if (confirm('Are you sure you want to delete this match record? This cannot be undone.')) {
+      if (confirm('Delete this match record? This cannot be undone.')) {
         try {
           await api(`/matches/${matchId}`, { method: 'DELETE' });
           await refreshGameData();
@@ -414,7 +446,44 @@ function renderMatchesList() {
       }
     });
   });
+
+  // Wire up edit handlers
+  document.querySelectorAll('.btn-edit-match').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const b = e.currentTarget;
+      document.getElementById('editMatchId').value = b.getAttribute('data-id');
+      document.getElementById('editMatchTitle').value = b.getAttribute('data-title');
+      document.getElementById('editMatchNotes').value = b.getAttribute('data-notes');
+      document.getElementById('editMatchOutcome').value = b.getAttribute('data-outcome');
+      document.getElementById('editMatchError').style.display = 'none';
+      document.getElementById('editMatchModal').style.display = 'flex';
+    });
+  });
 }
+
+// Edit match form submit
+document.getElementById('editMatchForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('editMatchId').value;
+  const errEl = document.getElementById('editMatchError');
+  errEl.style.display = 'none';
+
+  try {
+    await api(`/matches/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        title: document.getElementById('editMatchTitle').value.trim() || null,
+        notes: document.getElementById('editMatchNotes').value.trim() || null,
+        match_outcome: document.getElementById('editMatchOutcome').value
+      })
+    });
+    document.getElementById('editMatchModal').style.display = 'none';
+    await refreshGameData();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+});
 
 // ==========================================
 // 6. 5-Minute Auto-Refresh Timer
@@ -480,7 +549,6 @@ function onMatchGameChanged() {
 
   renderModalPlayerHeaders(game.category);
   matchPlayersBody.innerHTML = '';
-  // Default to 2 players
   addPlayerRow(game.category);
   addPlayerRow(game.category);
 }
@@ -512,7 +580,6 @@ function renderModalPlayerHeaders(category) {
       </tr>
     `;
   } else {
-    // Board Game or Custom
     matchPlayersHead.innerHTML = `
       <tr>
         <th style="width:30px">#</th>
@@ -672,7 +739,7 @@ document.querySelectorAll('[data-close]').forEach((btn) => {
 // Delete Game
 document.getElementById('btnDeleteGame')?.addEventListener('click', async () => {
   if (!state.selectedGame) return;
-  if (confirm(`Are you sure you want to delete "${state.selectedGame.name}" and all its match history?`)) {
+  if (confirm(`Delete "${state.selectedGame.name}" and all its match history? This cannot be undone.`)) {
     try {
       await api(`/games/${state.selectedGame.id}`, { method: 'DELETE' });
       state.selectedGame = null;
