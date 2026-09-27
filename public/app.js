@@ -267,7 +267,20 @@ function renderMatchesList() {
   matchesList.innerHTML = state.matches.map((m) => {
     const dateStr = new Date(m.played_at).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const cat = m.game_category;
-    const playersHtml = (m.players || []).map((p) => {
+
+    // Group players by team for display
+    const playersByTeam = {};
+    const noTeamPlayers = [];
+    (m.players || []).forEach(p => {
+      if (p.team_name) {
+        if (!playersByTeam[p.team_name]) playersByTeam[p.team_name] = [];
+        playersByTeam[p.team_name].push(p);
+      } else {
+        noTeamPlayers.push(p);
+      }
+    });
+
+    function renderPlayerLine(p) {
       let stat = '';
       if (cat === 'fps') {
         const kd = p.deaths > 0 ? (p.kills/p.deaths).toFixed(2) : p.kills;
@@ -280,15 +293,40 @@ function renderMatchesList() {
       } else {
         stat = `${p.score} pts${p.money?` <span class="stat-sub">| $${Number(p.money).toLocaleString()}</span>`:''}`;
       }
-      const teamTag = p.team_name ? `<span class="team-tag">${escapeHtml(p.team_name)}</span>` : '';
       return `<div class="match-player-line ${p.is_winner?'match-player-winner':''}">
         <span class="player-name-cell">
           ${p.is_winner?'<span class="winner-crown">🏆</span>':'<span class="player-dot"></span>'}
-          <strong>${escapeHtml(p.player_name)}</strong>${teamTag}
+          <strong>${escapeHtml(p.player_name)}</strong>
         </span>
         <span class="player-stat">${stat}</span>
       </div>`;
-    }).join('');
+    }
+
+    // Build players section: teams as blocks, no-team players listed normally
+    let playersHtml = '';
+
+    // Render teams first
+    Object.entries(playersByTeam).forEach(([teamName, teamPlayers]) => {
+      const teamWon = teamPlayers.some(p => p.is_winner);
+      playersHtml += `<div class="match-team-block ${teamWon ? 'match-team-winner' : ''}">
+        <div class="match-team-label">
+          🛡️ <strong>${escapeHtml(teamName)}</strong>
+          ${teamWon ? '<span class="team-win-badge">🏆 Winner</span>' : ''}
+        </div>
+        <div class="match-team-players">
+          ${teamPlayers.map(renderPlayerLine).join('')}
+        </div>
+      </div>`;
+    });
+
+    // Render no-team players
+    if (noTeamPlayers.length > 0) {
+      // If there were also teams, add a separator label
+      if (Object.keys(playersByTeam).length > 0) {
+        playersHtml += `<div class="match-noteam-label">👤 Individual Players</div>`;
+      }
+      playersHtml += noTeamPlayers.map(renderPlayerLine).join('');
+    }
 
     const outcomeBadge = m.match_outcome ? `<span class="outcome-badge outcome-${m.match_outcome}">${m.match_outcome.toUpperCase()}</span>` : '';
     const loggedBy     = m.logged_by ? `<span class="logged-by">by ${escapeHtml(m.logged_by)}</span>` : '';
@@ -302,6 +340,7 @@ function renderMatchesList() {
           id: m.id, title: m.title||'', notes: m.notes||'',
           outcome: m.match_outcome||'completed',
           played_at: m.played_at, category: m.game_category,
+          game_id: m.game_id,
           players: m.players||[]
         }).replace(/'/g,"&#39;")}' title="Edit match">✏️</button>
         <button class="btn-icon btn-delete-match" data-id="${m.id}" title="Delete match">🗑️</button>
@@ -588,6 +627,40 @@ function openEditMatchModal(m) {
   document.getElementById('editMatchOutcome').value  = m.outcome || 'completed';
   document.getElementById('editMatchError').style.display = 'none';
 
+  // Populate game dropdown
+  const editGameSelect = document.getElementById('editMatchGameSelect');
+  editGameSelect.innerHTML = '';
+  state.games.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name;
+    // select the game that matches this match's category (best guess by matching current game)
+    if (g.category === m.category && !editGameSelect.value) opt.selected = true;
+    editGameSelect.appendChild(opt);
+  });
+  // Try to find the game by stored game_id if available
+  if (m.game_id) editGameSelect.value = m.game_id;
+
+  // Set category badge
+  const selGame = state.games.find(g => g.id === editGameSelect.value) || state.games[0];
+  const editBadge = document.getElementById('editModalCategoryBadge');
+  if (editBadge && selGame) {
+    editBadge.textContent = selGame.category.toUpperCase();
+    editBadge.className = `badge-display badge-${selGame.category}`;
+  }
+
+  // When game changes, rebuild player headers
+  editGameSelect.onchange = () => {
+    const g = state.games.find(g => g.id === editGameSelect.value);
+    if (!g) return;
+    document.getElementById('editMatchCategory').value = g.category;
+    if (editBadge) { editBadge.textContent = g.category.toUpperCase(); editBadge.className = `badge-display badge-${g.category}`; }
+    document.getElementById('editMatchPlayersHead').innerHTML = getPlayerHeaders(g.category);
+    document.getElementById('editMatchPlayersBody').innerHTML = '';
+    document.getElementById('editTeamsContainer').innerHTML = '';
+    document.getElementById('editMatchPlayersBody').appendChild(buildPlayerRow(g.category, 1));
+  };
+
   // Set date
   const dt = document.getElementById('editMatchPlayedAt');
   try { dt.value = new Date(m.played_at).toISOString().slice(0,16); } catch(e) { dt.value = ''; }
@@ -601,8 +674,8 @@ function openEditMatchModal(m) {
   document.getElementById('editTeamsContainer').innerHTML   = '';
 
   // Group players by team
-  const noTeam   = players.filter(p => !p.team_name);
-  const teamMap  = {};
+  const noTeam  = players.filter(p => !p.team_name);
+  const teamMap = {};
   players.filter(p => p.team_name).forEach(p => {
     if (!teamMap[p.team_name]) teamMap[p.team_name] = [];
     teamMap[p.team_name].push(p);
@@ -619,13 +692,15 @@ function openEditMatchModal(m) {
     buildTeamBlock(name, cat, tPlayers, teamsContainer);
   });
 
-  // Wire add-player and add-team buttons for edit modal
+  // Wire add-player and add-team buttons
   document.getElementById('btnEditAddPlayerRow').onclick = () => {
+    const curCat = document.getElementById('editMatchCategory').value;
     const n = editBody.children.length + 1;
-    editBody.appendChild(buildPlayerRow(cat, n));
+    editBody.appendChild(buildPlayerRow(curCat, n));
   };
   document.getElementById('btnEditAddTeam').onclick = () => {
-    buildTeamBlock('', cat, [], teamsContainer);
+    const curCat = document.getElementById('editMatchCategory').value;
+    buildTeamBlock('', curCat, [], teamsContainer);
   };
 
   document.getElementById('editMatchModal').style.display = 'flex';
@@ -633,9 +708,10 @@ function openEditMatchModal(m) {
 
 document.getElementById('editMatchForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id  = document.getElementById('editMatchId').value;
-  const cat = document.getElementById('editMatchCategory').value;
-  const errEl = document.getElementById('editMatchError');
+  const id     = document.getElementById('editMatchId').value;
+  const cat    = document.getElementById('editMatchCategory').value;
+  const gameId = document.getElementById('editMatchGameSelect').value;
+  const errEl  = document.getElementById('editMatchError');
   errEl.style.display = 'none';
 
   // Collect standalone players
@@ -654,6 +730,7 @@ document.getElementById('editMatchForm').addEventListener('submit', async (e) =>
     await api(`/matches/${id}`, {
       method: 'PUT',
       body: JSON.stringify({
+        game_id:       gameId,
         title:         document.getElementById('editMatchTitle').value.trim()  || null,
         notes:         document.getElementById('editMatchNotes').value.trim()  || null,
         match_outcome: document.getElementById('editMatchOutcome').value,

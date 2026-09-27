@@ -338,17 +338,18 @@ app.put('/api/matches/:id', async (c) => {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const { title, notes, match_outcome, played_at, players } = body;
+  const { title, notes, match_outcome, played_at, players, game_id } = body;
 
-  // Update match header
+  // Update match header (optionally update game_id too)
   await c.env.DB.prepare(
-    'UPDATE matches SET title = ?, notes = ?, match_outcome = ?, played_at = COALESCE(?, played_at) WHERE id = ?'
-  ).bind(title || null, notes || null, match_outcome || null, played_at || null, id).run();
+    'UPDATE matches SET title = ?, notes = ?, match_outcome = ?, played_at = COALESCE(?, played_at), game_id = COALESCE(?, game_id) WHERE id = ?'
+  ).bind(title || null, notes || null, match_outcome || null, played_at || null, game_id || null, id).run();
 
   // If players provided, replace them
   if (Array.isArray(players) && players.length > 0) {
-    // Get game info for sorting
-    const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(match.game_id).first();
+    // Get game info for sorting (use updated game_id if provided)
+    const gameIdForSort = game_id || match.game_id;
+    const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(gameIdForSort).first();
 
     // Sort players
     const sortedPlayers = [...players];

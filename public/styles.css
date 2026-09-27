@@ -1111,3 +1111,59 @@ body {
   margin-left: 0.4rem;
   letter-spacing: 0.03em;
 }
+
+/* ============================================
+   MATCH CARD — TEAM DISPLAY
+   ============================================ */
+.match-team-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 0.6rem;
+  overflow: hidden;
+}
+
+.match-team-block.match-team-winner {
+  border-color: rgba(255,209,102,0.35);
+  background: rgba(255,209,102,0.04);
+}
+
+.match-team-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: rgba(108,99,255,0.1);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.match-team-block.match-team-winner .match-team-label {
+  background: rgba(255,209,102,0.1);
+  border-bottom-color: rgba(255,209,102,0.2);
+}
+
+.team-win-badge {
+  font-size: 0.7rem;
+  font-weight: 800;
+  background: rgba(255,209,102,0.2);
+  color: #fde68a;
+  border: 1px solid rgba(255,209,102,0.4);
+  border-radius: 9999px;
+  padding: 0.1rem 0.5rem;
+  margin-left: 0.25rem;
+}
+
+.match-team-players {
+  padding: 0.25rem 0;
+}
+
+.match-noteam-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.4rem 0.5rem 0.2rem;
+  margin-top: 0.25rem;
+}
