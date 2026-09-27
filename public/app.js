@@ -140,6 +140,8 @@ function showAuthScreen() {
   dashboardView.style.display = 'none';
   navControls.style.display = 'none';
   statusBar.style.display = 'none';
+  // Show floating decorations on auth page
+  document.querySelectorAll('.auth-float').forEach(el => el.style.display = 'block');
 }
 
 // ==========================================
@@ -151,6 +153,8 @@ async function initDashboard() {
   dashboardView.style.display = 'block';
   navControls.style.display = 'flex';
   statusBar.style.display = 'flex';
+  // Hide floating decorations on dashboard
+  document.querySelectorAll('.auth-float').forEach(el => el.style.display = 'none');
 
   try {
     const meRes = await api('/auth/me');
