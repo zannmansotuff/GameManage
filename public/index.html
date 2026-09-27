@@ -17,8 +17,8 @@
       <span class="logo-text">GameScore<strong>Hub</strong></span>
     </div>
 
-    <!-- Theme toggle always visible -->
-    <button id="btnThemeToggleAuth" class="btn btn-ghost btn-sm theme-toggle" title="Toggle light/dark mode" style="margin-left:auto;">🌙</button>
+    <!-- Single theme toggle, always visible whether logged in or not -->
+    <button id="btnThemeToggle" class="btn btn-ghost btn-sm theme-toggle" title="Toggle light/dark mode" style="margin-left:auto;">🌙</button>
 
     <div class="nav-controls" id="navControls" style="display: none;">
       <div class="select-wrapper">
@@ -34,7 +34,6 @@
       <div class="user-profile">
         <span id="navUsername" class="nav-user">Player</span>
         <span id="adminBadge" class="badge" style="background:#ef4444; color:#fff; font-size:0.65rem; display:none;">ADMIN</span>
-        <button id="btnThemeToggle" class="btn btn-ghost btn-sm theme-toggle" title="Toggle light/dark mode">🌙</button>
         <button id="btnLogout" class="btn btn-ghost btn-sm">Logout</button>
       </div>
     </div>
@@ -209,7 +208,13 @@
             </table>
           </div>
 
-          <button type="button" id="btnAddPlayerRow" class="btn btn-secondary btn-sm mt-2">+ Add Another Player</button>
+          <!-- Teams container for new match -->
+          <div id="newMatchTeamsContainer"></div>
+
+          <div class="team-add-row mt-2">
+            <button type="button" id="btnAddPlayerRow" class="btn btn-secondary btn-sm">+ Add Player</button>
+            <button type="button" id="btnAddTeam" class="btn btn-secondary btn-sm">🛡️ Add Team</button>
+          </div>
         </div>
 
         <div class="modal-footer">
@@ -258,38 +263,76 @@
     </div>
   </div>
 
-  <!-- Modal: Edit Match -->
+  <!-- Modal: Edit Match (full editor matching new match layout) -->
   <div id="editMatchModal" class="modal-overlay" style="display: none;">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-header">
         <h3>✏️ Edit Match Record</h3>
         <button class="modal-close" data-close="editMatchModal">&times;</button>
       </div>
       <form id="editMatchForm">
         <input type="hidden" id="editMatchId">
+        <input type="hidden" id="editMatchCategory">
         <div class="modal-body">
-          <div class="form-group">
-            <label for="editMatchTitle">Match Title</label>
-            <input type="text" id="editMatchTitle" placeholder="e.g. Friday Game Night">
+
+          <!-- Match header fields -->
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="editMatchTitle">Match Title / Map / Session</label>
+              <input type="text" id="editMatchTitle" placeholder="e.g. Friday Game Night">
+            </div>
+            <div class="form-group flex-1">
+              <label for="editMatchOutcome">Outcome / Status</label>
+              <select id="editMatchOutcome">
+                <option value="completed">Completed</option>
+                <option value="win">Team Victory</option>
+                <option value="loss">Defeat</option>
+                <option value="draw">Draw</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label for="editMatchOutcome">Outcome / Status</label>
-            <select id="editMatchOutcome">
-              <option value="completed">Completed</option>
-              <option value="win">Team Victory</option>
-              <option value="loss">Defeat</option>
-              <option value="draw">Draw</option>
-            </select>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="editMatchPlayedAt">Date &amp; Time Played</label>
+              <input type="datetime-local" id="editMatchPlayedAt" required>
+            </div>
+            <div class="form-group flex-2">
+              <label for="editMatchNotes">Notes / Highlights</label>
+              <input type="text" id="editMatchNotes" placeholder="e.g. 4-player game, close finish">
+            </div>
           </div>
-          <div class="form-group">
-            <label for="editMatchNotes">Notes / Highlights</label>
-            <input type="text" id="editMatchNotes" placeholder="e.g. 4-player game, close finish">
+
+          <hr class="divider">
+
+          <!-- Teams + Players section -->
+          <div class="section-sub-header">
+            <h4>Player Results</h4>
+            <span class="sub-help" id="editPlayerInputsHelp">Fields adapted for game type</span>
           </div>
+
+          <!-- Teams container -->
+          <div id="editTeamsContainer"></div>
+
+          <!-- Stand-alone (no-team) players table -->
+          <div class="team-block" id="editNoTeamBlock">
+            <div class="table-responsive">
+              <table class="input-table" id="editMatchPlayersTable">
+                <thead id="editMatchPlayersHead"></thead>
+                <tbody id="editMatchPlayersBody"></tbody>
+              </table>
+            </div>
+            <div class="team-add-row">
+              <button type="button" id="btnEditAddPlayerRow" class="btn btn-secondary btn-sm">+ Add Player</button>
+              <button type="button" id="btnEditAddTeam" class="btn btn-secondary btn-sm">🛡️ Add Team</button>
+            </div>
+          </div>
+
           <div id="editMatchError" class="alert alert-error" style="display:none;"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-ghost" data-close="editMatchModal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Changes</button>
+          <button type="submit" class="btn btn-primary">Save All Changes</button>
         </div>
       </form>
     </div>

@@ -1038,3 +1038,76 @@ body {
   .match-card-right  { align-self: flex-end; }
   .auth-float        { display: none; }
 }
+
+/* ============================================
+   TEAMS
+   ============================================ */
+.team-block {
+  border: 1px solid rgba(108,99,255,0.3);
+  border-radius: var(--radius-lg);
+  padding: 1rem 1.1rem 0.85rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgba(108,99,255,0.06), rgba(255,107,157,0.03));
+  position: relative;
+}
+
+.team-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.team-icon { font-size: 1.1rem; }
+
+.team-name-input {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg-input);
+  border: 1px solid rgba(108,99,255,0.3);
+  border-radius: var(--radius);
+  padding: 0.4rem 0.75rem;
+  color: var(--text-main);
+  font-size: 0.9rem;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.team-name-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.team-remove-btn {
+  color: var(--text-muted);
+  border: 1px solid var(--border-bright) !important;
+  transition: all 0.15s;
+}
+.team-remove-btn:hover {
+  background: rgba(255,107,107,0.15) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(255,107,107,0.4) !important;
+}
+
+.team-add-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.6rem;
+}
+
+/* Team tag shown on match cards */
+.team-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  background: rgba(108,99,255,0.15);
+  border: 1px solid rgba(108,99,255,0.35);
+  border-radius: 9999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #b3adff;
+  margin-left: 0.4rem;
+  letter-spacing: 0.03em;
+}

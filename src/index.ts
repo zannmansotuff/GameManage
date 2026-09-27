@@ -320,12 +320,12 @@ app.delete('/api/matches/:id', async (c) => {
   return c.json({ success: true });
 });
 
-// Update match title/notes/outcome (owner or admin)
+// Update match fully (owner or admin) — replaces title/notes/outcome AND players
 app.put('/api/matches/:id', async (c) => {
   const user = c.get('user')!;
   const id = c.req.param('id');
 
-  const match: any = await c.env.DB.prepare('SELECT user_id FROM matches WHERE id = ?').bind(id).first();
+  const match: any = await c.env.DB.prepare('SELECT user_id, game_id FROM matches WHERE id = ?').bind(id).first();
   if (!match) {
     return c.json({ error: 'Match not found' }, 404);
   }
@@ -338,11 +338,56 @@ app.put('/api/matches/:id', async (c) => {
   }
 
   const body = await c.req.json().catch(() => ({}));
-  const { title, notes, match_outcome } = body;
+  const { title, notes, match_outcome, played_at, players } = body;
 
+  // Update match header
   await c.env.DB.prepare(
-    'UPDATE matches SET title = ?, notes = ?, match_outcome = ? WHERE id = ?'
-  ).bind(title || null, notes || null, match_outcome || null, id).run();
+    'UPDATE matches SET title = ?, notes = ?, match_outcome = ?, played_at = COALESCE(?, played_at) WHERE id = ?'
+  ).bind(title || null, notes || null, match_outcome || null, played_at || null, id).run();
+
+  // If players provided, replace them
+  if (Array.isArray(players) && players.length > 0) {
+    // Get game info for sorting
+    const game: any = await c.env.DB.prepare('SELECT * FROM games WHERE id = ?').bind(match.game_id).first();
+
+    // Sort players
+    const sortedPlayers = [...players];
+    if (game && game.category === 'fps') {
+      sortedPlayers.sort((a, b) => (b.score || (b.kills - b.deaths)) - (a.score || (a.kills - a.deaths)));
+    } else if (game && game.scoring_type === 'lowest_wins') {
+      sortedPlayers.sort((a, b) => Number(a.score || 0) - Number(b.score || 0));
+    } else {
+      sortedPlayers.sort((a, b) => Number(b.score || 0) - Number(a.score || 0));
+    }
+
+    // Delete old players
+    await c.env.DB.prepare('DELETE FROM match_players WHERE match_id = ?').bind(id).run();
+
+    // Insert new players
+    const playerInserts = sortedPlayers.map((p, idx) => {
+      const playerId = crypto.randomUUID();
+      const rank = idx + 1;
+      const isWinner = p.is_winner !== undefined ? (p.is_winner ? 1 : 0) : (rank === 1 ? 1 : 0);
+      const extraStats = p.extra_stats ? JSON.stringify(p.extra_stats) : null;
+      return c.env.DB.prepare(
+        `INSERT INTO match_players
+         (id, match_id, player_name, score, rank, is_winner, kills, deaths, assists, money, extra_stats, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(
+        playerId, id,
+        p.player_name || 'Anonymous',
+        Number(p.score || 0), rank, isWinner,
+        p.kills !== undefined ? Number(p.kills) : null,
+        p.deaths !== undefined ? Number(p.deaths) : null,
+        p.assists !== undefined ? Number(p.assists) : null,
+        p.money !== undefined ? Number(p.money) : null,
+        extraStats,
+        p.notes || null
+      );
+    });
+
+    await c.env.DB.batch(playerInserts);
+  }
 
   return c.json({ success: true });
 });
