@@ -494,19 +494,77 @@ function collectPlayers(tbody, category, teamName) {
 // ==========================================
 // 8. Teams helper
 // ==========================================
+let teamCounter = 0; // increments per session so Team 1, Team 2 etc.
+
 function buildTeamBlock(teamName, category, prefillPlayers, container) {
   const block = document.createElement('div');
   block.className = 'team-block';
-  const teamId = 'team_' + Date.now() + '_' + Math.random().toString(36).slice(2);
-  block.dataset.teamId = teamId;
+
+  // Auto-assign a team label based on position in container
+  function getAutoLabel() {
+    const idx = Array.from(container.querySelectorAll('.team-block')).indexOf(block);
+    return `Team ${idx + 1}`;
+  }
 
   const header = document.createElement('div');
   header.className = 'team-header';
-  header.innerHTML = `
-    <span class="team-icon">🛡️</span>
-    <input type="text" class="team-name-input" placeholder="Team Name" value="${escapeHtml(teamName||'')}">
-    <button type="button" class="btn btn-ghost btn-xs team-remove-btn" title="Remove team">✕ Remove Team</button>`;
+  // Show team label (read-only display, no text input needed)
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'team-auto-label';
+  labelSpan.textContent = teamName || 'Team';
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'btn btn-ghost btn-xs team-remove-btn';
+  removeBtn.title = 'Remove team';
+  removeBtn.textContent = '✕ Remove Team';
+
+  header.appendChild(document.createTextNode('🛡️ '));
+  header.appendChild(labelSpan);
+  header.appendChild(removeBtn);
   block.appendChild(header);
+
+  const tableWrap = document.createElement('div');
+  tableWrap.className = 'table-responsive';
+  const table = document.createElement('table');
+  table.className = 'input-table';
+  const thead = document.createElement('thead');
+  thead.innerHTML = getPlayerHeaders(category);
+  const tbody = document.createElement('tbody');
+  table.appendChild(thead);
+  table.appendChild(tbody);
+  tableWrap.appendChild(table);
+  block.appendChild(tableWrap);
+
+  (prefillPlayers || []).forEach((p, i) => tbody.appendChild(buildPlayerRow(category, i+1, p)));
+  if (!prefillPlayers || prefillPlayers.length === 0) tbody.appendChild(buildPlayerRow(category, 1));
+
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'btn btn-secondary btn-sm mt-2';
+  addBtn.textContent = '+ Add Player to Team';
+  addBtn.addEventListener('click', () => tbody.appendChild(buildPlayerRow(category, tbody.children.length + 1)));
+  block.appendChild(addBtn);
+
+  removeBtn.addEventListener('click', () => {
+    block.remove();
+    // Re-label remaining teams
+    relabelTeams(container);
+  });
+
+  container.appendChild(block);
+
+  // Label all teams in order after adding
+  relabelTeams(container);
+  return block;
+}
+
+function relabelTeams(container) {
+  container.querySelectorAll('.team-block').forEach((block, idx) => {
+    const lbl = block.querySelector('.team-auto-label');
+    if (lbl) lbl.textContent = `Team ${idx + 1}`;
+  });
+}
 
   const tableWrap = document.createElement('div');
   tableWrap.className = 'table-responsive';
@@ -595,7 +653,7 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
 
   // Collect team players
   document.querySelectorAll('#newMatchTeamsContainer .team-block').forEach(block => {
-    const teamName = block.querySelector('.team-name-input')?.value.trim() || 'Team';
+    const teamName = block.querySelector('.team-auto-label')?.textContent.trim() || 'Team';
     const tbody    = block.querySelector('tbody');
     players = players.concat(collectPlayers(tbody, cat, teamName));
   });
@@ -719,7 +777,7 @@ document.getElementById('editMatchForm').addEventListener('submit', async (e) =>
 
   // Collect team players
   document.querySelectorAll('#editTeamsContainer .team-block').forEach(block => {
-    const teamName = block.querySelector('.team-name-input')?.value.trim() || 'Team';
+    const teamName = block.querySelector('.team-auto-label')?.textContent.trim() || 'Team';
     const tbody    = block.querySelector('tbody');
     players = players.concat(collectPlayers(tbody, cat, teamName));
   });

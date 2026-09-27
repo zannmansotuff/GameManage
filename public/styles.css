@@ -1061,23 +1061,18 @@ body {
 
 .team-icon { font-size: 1.1rem; }
 
-.team-name-input {
-  flex: 1;
-  min-width: 140px;
-  background: var(--bg-input);
-  border: 1px solid rgba(108,99,255,0.3);
-  border-radius: var(--radius);
-  padding: 0.4rem 0.75rem;
-  color: var(--text-main);
-  font-size: 0.9rem;
-  font-weight: 700;
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+.team-auto-label {
+  font-size: 0.95rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #a78bfa, #f472b6);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.01em;
 }
-.team-name-input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-glow);
-}
+
+/* keep old team-name-input hidden in case any old markup exists */
+.team-name-input { display: none; }
 
 .team-remove-btn {
   color: var(--text-muted);
