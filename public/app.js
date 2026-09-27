@@ -566,38 +566,6 @@ function relabelTeams(container) {
   });
 }
 
-  const tableWrap = document.createElement('div');
-  tableWrap.className = 'table-responsive';
-  const table = document.createElement('table');
-  table.className = 'input-table';
-  const thead = document.createElement('thead');
-  thead.innerHTML = getPlayerHeaders(category);
-  const tbody = document.createElement('tbody');
-  table.appendChild(thead);
-  table.appendChild(tbody);
-  tableWrap.appendChild(table);
-  block.appendChild(tableWrap);
-
-  // Pre-fill players
-  (prefillPlayers || []).forEach((p, i) => tbody.appendChild(buildPlayerRow(category, i+1, p)));
-  if (!prefillPlayers || prefillPlayers.length === 0) tbody.appendChild(buildPlayerRow(category, 1));
-
-  const addBtn = document.createElement('button');
-  addBtn.type = 'button';
-  addBtn.className = 'btn btn-secondary btn-sm mt-2';
-  addBtn.textContent = '+ Add Player to Team';
-  addBtn.addEventListener('click', () => {
-    const n = tbody.children.length + 1;
-    tbody.appendChild(buildPlayerRow(category, n));
-  });
-  block.appendChild(addBtn);
-
-  header.querySelector('.team-remove-btn').addEventListener('click', () => block.remove());
-
-  container.appendChild(block);
-  return block;
-}
-
 // ==========================================
 // 9. New Match Modal
 // ==========================================
