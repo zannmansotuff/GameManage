@@ -157,7 +157,7 @@ async function loadGames() {
     activeGameTitle.textContent = 'Welcome! Create your first game';
     activeGameBadge.style.display = 'none';
     activeGameMeta.textContent = 'Click "+ New Game" in the top bar to get started.';
-    leaderboardBody.innerHTML = '<tr><td colspan="7" class="text-center">No games created yet.</td></tr>';
+    leaderboardBody.innerHTML = '<tr><td colspan="9" class="text-center">No games created yet.</td></tr>';
     matchesList.innerHTML = '<div class="empty-state">No games created yet.</div>';
     return;
   }
@@ -218,42 +218,61 @@ async function refreshGameData() {
 // ==========================================
 function renderLeaderboard() {
   const cat = state.selectedGame.category;
+  const isAdmin = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
   if (cat === 'fps') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
   } else if (cat === 'rpg') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
   } else {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
   }
   if (state.stats.length === 0) {
-    leaderboardBody.innerHTML = '<tr><td colspan="7" class="text-center">No matches recorded yet.</td></tr>';
+    leaderboardBody.innerHTML = `<tr><td colspan="${isAdmin?9:8}" class="text-center">No matches recorded yet.</td></tr>`;
     return;
   }
   leaderboardBody.innerHTML = state.stats.map((row, idx) => {
     const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`;
+    const teamCell = `<td>${row.teams ? escapeHtml(row.teams) : '<span class="stat-sub">—</span>'}</td>`;
+    const deleteCell = isAdmin ? `<td><button class="btn-icon btn-delete-player" data-name="${escapeHtml(row.player_name)}" title="Delete player from this game">🗑️</button></td>` : '';
     if (cat === 'fps') return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
+      ${teamCell}
       <td>${row.matches_played} <span class="stat-sub">(${row.wins}W/${row.matches_played-row.wins}L)</span></td>
       <td>${row.total_kills||0}/${row.total_deaths||0}</td>
       <td><span class="badge badge-fps">${row.kd_ratio}</span></td>
       <td>${row.total_assists||0}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
     if (cat === 'rpg') return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
+      ${teamCell}
       <td>${row.matches_played}</td><td>${row.wins} Cleared</td>
       <td>${row.total_kills||row.avg_score}</td>
       <td>${row.total_money?`$${Number(row.total_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
     return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
+      ${teamCell}
       <td>${row.matches_played}</td><td>${row.wins} Wins</td>
       <td>${row.avg_score}</td>
       <td>${row.avg_money?`$${Number(row.avg_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
   }).join('');
+
+  // Wire admin delete-player buttons
+  document.querySelectorAll('.btn-delete-player').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const name = e.currentTarget.getAttribute('data-name');
+      if (confirm(`Delete "${name}" and all their records from "${state.selectedGame.name}"? This cannot be undone.`)) {
+        try {
+          await api(`/players?name=${encodeURIComponent(name)}&game_id=${state.selectedGame.id}`, { method: 'DELETE' });
+          await refreshGameData();
+        } catch (err) { alert(`Failed to delete player: ${err.message}`); }
+      }
+    });
+  });
 }
 
 // ==========================================
@@ -592,17 +611,11 @@ function onMatchGameChanged() {
   modalCategoryBadge.className   = `badge-display badge-${game.category}`;
   matchPlayersHead.innerHTML = getPlayerHeaders(game.category);
   matchPlayersBody.innerHTML = '';
-  document.getElementById('newMatchTeamsContainer').innerHTML = '';
-  buildPlayerRow(game.category, 1).then ? null : matchPlayersBody.appendChild(buildPlayerRow(game.category, 1));
-  matchPlayersBody.appendChild(buildPlayerRow(game.category, 2));
+  // Start with one team block containing 2 players already added
+  const teamsContainer = document.getElementById('newMatchTeamsContainer');
+  teamsContainer.innerHTML = '';
+  buildTeamBlock('', game.category, [{}, {}], teamsContainer);
 }
-
-document.getElementById('btnAddPlayerRow').addEventListener('click', () => {
-  const game = state.games.find(g => g.id === matchGameSelect.value) || state.selectedGame;
-  const cat  = game ? game.category : 'board';
-  const n    = matchPlayersBody.children.length + 1;
-  matchPlayersBody.appendChild(buildPlayerRow(cat, n));
-});
 
 document.getElementById('btnAddTeam').addEventListener('click', () => {
   const game = state.games.find(g => g.id === matchGameSelect.value) || state.selectedGame;

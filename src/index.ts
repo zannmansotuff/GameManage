@@ -275,8 +275,8 @@ app.post('/api/matches', async (c) => {
 
     return c.env.DB.prepare(
       `INSERT INTO match_players 
-       (id, match_id, player_name, score, rank, is_winner, kills, deaths, assists, money, extra_stats, notes) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       (id, match_id, player_name, score, rank, is_winner, kills, deaths, assists, money, extra_stats, notes, team_name) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       playerId,
       matchId,
@@ -289,7 +289,8 @@ app.post('/api/matches', async (c) => {
       p.assists !== undefined ? Number(p.assists) : null,
       p.money !== undefined ? Number(p.money) : null,
       extraStats,
-      p.notes || null
+      p.notes || null,
+      p.team_name || null
     );
   });
 
@@ -422,7 +423,8 @@ app.get('/api/stats', async (c) => {
       SUM(mp.deaths) as total_deaths,
       SUM(mp.assists) as total_assists,
       AVG(mp.money) as avg_money,
-      SUM(mp.money) as total_money
+      SUM(mp.money) as total_money,
+      GROUP_CONCAT(DISTINCT mp.team_name) as teams
     FROM match_players mp
     JOIN matches m ON mp.match_id = m.id
     WHERE m.game_id = ?
@@ -451,6 +453,48 @@ app.get('/api/stats', async (c) => {
   });
 
   return c.json({ game, stats: formattedStats });
+});
+
+// ----------------------------------------------------
+// 5. PLAYER MODERATION ROUTE (ADMIN ONLY)
+// ----------------------------------------------------
+
+// Delete a player's records from a game (removes spam players from the leaderboard)
+app.delete('/api/players', async (c) => {
+  const user = c.get('user')!;
+  if (user.username.toLowerCase() !== 'admin') {
+    return c.json({ error: 'Forbidden: Only the admin account can delete players' }, 403);
+  }
+
+  const name = c.req.query('name');
+  const gameId = c.req.query('game_id');
+
+  if (!name || !gameId) {
+    return c.json({ error: 'name and game_id query params are required' }, 400);
+  }
+
+  // Find matches in this game that include this player (to clean up empties later)
+  const { results: affectedMatches } = await c.env.DB.prepare(
+    `SELECT DISTINCT m.id FROM matches m JOIN match_players mp ON mp.match_id = m.id WHERE m.game_id = ? AND mp.player_name = ?`
+  ).bind(gameId, name).all();
+
+  // Delete all of this player's records in the game
+  await c.env.DB.prepare(
+    `DELETE FROM match_players WHERE match_id IN (SELECT id FROM matches WHERE game_id = ?) AND player_name = ?`
+  ).bind(gameId, name).run();
+
+  // Delete matches that no longer have any players left
+  if (affectedMatches.length > 0) {
+    const ids = (affectedMatches as any[]).map(m => `'${m.id}'`).join(',');
+    const { results: emptyMatches } = await c.env.DB.prepare(
+      `SELECT m.id FROM matches m LEFT JOIN match_players mp ON mp.match_id = m.id WHERE m.id IN (${ids}) GROUP BY m.id HAVING COUNT(mp.id) = 0`
+    ).all();
+    for (const em of emptyMatches as any[]) {
+      await c.env.DB.prepare('DELETE FROM matches WHERE id = ?').bind(em.id).run();
+    }
+  }
+
+  return c.json({ success: true });
 });
 
 // Fallback to static assets (HTML/CSS/JS)
