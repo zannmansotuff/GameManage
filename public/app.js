@@ -12,6 +12,11 @@ const state = {
   refreshTimer: AUTO_REFRESH_SECONDS, timerInterval: null
 };
 
+// Store match data by ID for edit modal (avoids HTML attribute encoding issues)
+const matchDataStore = {};
+
+let matchMode = 'team'; // 'player' or 'team'
+
 const authScreen      = document.getElementById('authScreen');
 const dashboardView   = document.getElementById('dashboardView');
 const navControls     = document.getElementById('navControls');
@@ -157,7 +162,7 @@ async function loadGames() {
     activeGameTitle.textContent = 'Welcome! Create your first game';
     activeGameBadge.style.display = 'none';
     activeGameMeta.textContent = 'Click "+ New Game" in the top bar to get started.';
-    leaderboardBody.innerHTML = '<tr><td colspan="9" class="text-center">No games created yet.</td></tr>';
+    leaderboardBody.innerHTML = '<tr><td colspan="8" class="text-center">No games created yet.</td></tr>';
     matchesList.innerHTML = '<div class="empty-state">No games created yet.</div>';
     return;
   }
@@ -216,63 +221,75 @@ async function refreshGameData() {
 // ==========================================
 // 4. Leaderboard
 // ==========================================
+function kdColor(kd) {
+  const val = parseFloat(kd);
+  if (val >= 1.5) return '#06d6a0';
+  if (val >= 1.0) return '#ffd166';
+  return '#ff6b6b';
+}
+
+function winRateColor(wr) {
+  const val = parseFloat(wr);
+  if (val >= 60) return '#06d6a0';
+  if (val >= 40) return '#ffd166';
+  return '#ff6b6b';
+}
+
+function sortStats(stats, sortBy) {
+  const sorted = [...stats];
+  if (sortBy === 'kd') {
+    sorted.sort((a, b) => parseFloat(b.kd_ratio) - parseFloat(a.kd_ratio));
+  } else if (sortBy === 'win_rate') {
+    sorted.sort((a, b) => parseFloat(b.win_rate) - parseFloat(a.win_rate));
+  } else {
+    sorted.sort((a, b) => b.wins - a.wins);
+  }
+  return sorted;
+}
+
 function renderLeaderboard() {
   const cat = state.selectedGame.category;
-  const isAdmin = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
+  const sortBy = document.getElementById('leaderboardSort')?.value || 'wins';
+  const sorted = sortStats(state.stats, sortBy);
+
   if (cat === 'fps') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th></tr>`;
   } else if (cat === 'rpg') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th></tr>`;
   } else {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Team</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th>${isAdmin?'<th></th>':''}</tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th></tr>`;
   }
-  if (state.stats.length === 0) {
-    leaderboardBody.innerHTML = `<tr><td colspan="${isAdmin?9:8}" class="text-center">No matches recorded yet.</td></tr>`;
+  if (sorted.length === 0) {
+    leaderboardBody.innerHTML = `<tr><td colspan="7" class="text-center">No matches recorded yet.</td></tr>`;
     return;
   }
-  leaderboardBody.innerHTML = state.stats.map((row, idx) => {
+  leaderboardBody.innerHTML = sorted.map((row, idx) => {
     const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx+1}`;
-    const teamCell = `<td>${row.teams ? escapeHtml(row.teams) : '<span class="stat-sub">—</span>'}</td>`;
-    const deleteCell = isAdmin ? `<td><button class="btn-icon btn-delete-player" data-name="${escapeHtml(row.player_name)}" title="Delete player from this game">🗑️</button></td>` : '';
+    const kdStyle = cat === 'fps' ? `style="color:${kdColor(row.kd_ratio)}"` : '';
+    const wrStyle = `style="color:${winRateColor(row.win_rate)}"`;
     if (cat === 'fps') return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
-      ${teamCell}
       <td>${row.matches_played} <span class="stat-sub">(${row.wins}W/${row.matches_played-row.wins}L)</span></td>
       <td>${row.total_kills||0}/${row.total_deaths||0}</td>
-      <td><span class="badge badge-fps">${row.kd_ratio}</span></td>
+      <td><span class="badge badge-fps" ${kdStyle}>${row.kd_ratio}</span></td>
       <td>${row.total_assists||0}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
     if (cat === 'rpg') return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
-      ${teamCell}
       <td>${row.matches_played}</td><td>${row.wins} Cleared</td>
       <td>${row.total_kills||row.avg_score}</td>
       <td>${row.total_money?`$${Number(row.total_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
     return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
-      ${teamCell}
       <td>${row.matches_played}</td><td>${row.wins} Wins</td>
       <td>${row.avg_score}</td>
       <td>${row.avg_money?`$${Number(row.avg_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill">${row.win_rate}%</span></td>${deleteCell}</tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
   }).join('');
-
-  // Wire admin delete-player buttons
-  document.querySelectorAll('.btn-delete-player').forEach(btn => {
-    btn.addEventListener('click', async (e) => {
-      const name = e.currentTarget.getAttribute('data-name');
-      if (confirm(`Delete "${name}" and all their records from "${state.selectedGame.name}"? This cannot be undone.`)) {
-        try {
-          await api(`/players?name=${encodeURIComponent(name)}&game_id=${state.selectedGame.id}`, { method: 'DELETE' });
-          await refreshGameData();
-        } catch (err) { alert(`Failed to delete player: ${err.message}`); }
-      }
-    });
-  });
 }
 
 // ==========================================
@@ -284,8 +301,12 @@ function renderMatchesList() {
     return;
   }
   matchesList.innerHTML = state.matches.map((m) => {
+    matchDataStore[m.id] = m;
     const dateStr = new Date(m.played_at).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const cat = m.game_category;
+    const isAdmin  = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
+    const isOwner  = state.user && m.match_owner_id === state.user.id;
+    const canEdit  = isAdmin || isOwner;
 
     // Group players by team for display
     const playersByTeam = {};
@@ -312,12 +333,14 @@ function renderMatchesList() {
       } else {
         stat = `${p.score} pts${p.money?` <span class="stat-sub">| $${Number(p.money).toLocaleString()}</span>`:''}`;
       }
+      const deleteBtn = canEdit ? `<button class="btn-icon btn-delete-match-player" data-match-id="${m.id}" data-player-id="${p.id}" data-player-name="${escapeHtml(p.player_name)}" title="Delete player">×</button>` : '';
       return `<div class="match-player-line ${p.is_winner?'match-player-winner':''}">
         <span class="player-name-cell">
           ${p.is_winner?'<span class="winner-crown">🏆</span>':'<span class="player-dot"></span>'}
           <strong>${escapeHtml(p.player_name)}</strong>
         </span>
         <span class="player-stat">${stat}</span>
+        ${deleteBtn}
       </div>`;
     }
 
@@ -349,19 +372,10 @@ function renderMatchesList() {
 
     const outcomeBadge = m.match_outcome ? `<span class="outcome-badge outcome-${m.match_outcome}">${m.match_outcome.toUpperCase()}</span>` : '';
     const loggedBy     = m.logged_by ? `<span class="logged-by">by ${escapeHtml(m.logged_by)}</span>` : '';
-    const isAdmin  = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
-    const isOwner  = state.user && m.match_owner_id === state.user.id;
-    const canEdit  = isAdmin || isOwner;
 
     const actions = canEdit ? `
       <div class="match-actions">
-        <button class="btn-icon btn-edit-match" data-match='${JSON.stringify({
-          id: m.id, title: m.title||'', notes: m.notes||'',
-          outcome: m.match_outcome||'completed',
-          played_at: m.played_at, category: m.game_category,
-          game_id: m.game_id,
-          players: m.players||[]
-        }).replace(/'/g,"&#39;")}' title="Edit match">✏️</button>
+        <button class="btn-icon btn-edit-match" data-id="${m.id}" title="Edit match">✏️</button>
         <button class="btn-icon btn-delete-match" data-id="${m.id}" title="Delete match">🗑️</button>
       </div>` : '';
 
@@ -391,11 +405,23 @@ function renderMatchesList() {
     });
   });
 
+  document.querySelectorAll('.btn-delete-match-player').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const matchId = e.currentTarget.getAttribute('data-match-id');
+      const playerId = e.currentTarget.getAttribute('data-player-id');
+      const playerName = e.currentTarget.getAttribute('data-player-name');
+      if (confirm(`Delete "${playerName}" from this match?`)) {
+        try { await api(`/matches/${matchId}/players/${playerId}`, { method: 'DELETE' }); await refreshGameData(); }
+        catch (err) { alert(`Failed to delete player: ${err.message}`); }
+      }
+    });
+  });
+
   document.querySelectorAll('.btn-edit-match').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const raw = e.currentTarget.getAttribute('data-match');
-      const m   = JSON.parse(raw.replace(/&#39;/g, "'"));
-      openEditMatchModal(m);
+      const id = e.currentTarget.getAttribute('data-id');
+      const m = matchDataStore[id];
+      if (m) openEditMatchModal(m);
     });
   });
 }
@@ -476,6 +502,7 @@ function buildPlayerRow(category, rowNum, prefill) {
       <td><button type="button" class="btn btn-ghost btn-xs btn-remove-row">&times;</button></td>`;
   }
   tr.querySelector('.btn-remove-row').addEventListener('click', () => tr.remove());
+  tr.querySelector('.p-winner')?.addEventListener('change', () => enforceMVPLimit());
   return tr;
 }
 
@@ -513,24 +540,29 @@ function collectPlayers(tbody, category, teamName) {
 // ==========================================
 // 8. Teams helper
 // ==========================================
-let teamCounter = 0; // increments per session so Team 1, Team 2 etc.
+let teamCounter = 0;
 
 function buildTeamBlock(teamName, category, prefillPlayers, container) {
   const block = document.createElement('div');
   block.className = 'team-block';
 
-  // Auto-assign a team label based on position in container
-  function getAutoLabel() {
-    const idx = Array.from(container.querySelectorAll('.team-block')).indexOf(block);
-    return `Team ${idx + 1}`;
-  }
-
   const header = document.createElement('div');
   header.className = 'team-header';
-  // Show team label (read-only display, no text input needed)
   const labelSpan = document.createElement('span');
   labelSpan.className = 'team-auto-label';
   labelSpan.textContent = teamName || 'Team';
+
+  const winnerLabel = document.createElement('label');
+  winnerLabel.className = 'team-winner-label';
+  winnerLabel.innerHTML = '<input type="checkbox" class="team-winner-check"> Winner';
+  winnerLabel.querySelector('.team-winner-check').addEventListener('change', () => {
+    if (winnerLabel.querySelector('.team-winner-check').checked) {
+      // Uncheck other teams
+      container.querySelectorAll('.team-winner-check').forEach(cb => {
+        if (cb !== winnerLabel.querySelector('.team-winner-check')) cb.checked = false;
+      });
+    }
+  });
 
   const removeBtn = document.createElement('button');
   removeBtn.type = 'button';
@@ -540,6 +572,7 @@ function buildTeamBlock(teamName, category, prefillPlayers, container) {
 
   header.appendChild(document.createTextNode('🛡️ '));
   header.appendChild(labelSpan);
+  header.appendChild(winnerLabel);
   header.appendChild(removeBtn);
   block.appendChild(header);
 
@@ -567,13 +600,10 @@ function buildTeamBlock(teamName, category, prefillPlayers, container) {
 
   removeBtn.addEventListener('click', () => {
     block.remove();
-    // Re-label remaining teams
     relabelTeams(container);
   });
 
   container.appendChild(block);
-
-  // Label all teams in order after adding
   relabelTeams(container);
   return block;
 }
@@ -586,7 +616,58 @@ function relabelTeams(container) {
 }
 
 // ==========================================
-// 9. New Match Modal
+// 9. Match Mode (Player vs Team)
+// ==========================================
+function updateMatchMode() {
+  const teamsContainer = document.getElementById('newMatchTeamsContainer');
+  const playerTable = document.querySelector('#matchPlayersTable')?.closest('.table-responsive');
+  const addTeamBtn = document.getElementById('btnAddTeam');
+  const mvpDisplay = document.getElementById('mvpLimitDisplay');
+
+  if (matchMode === 'player') {
+    if (teamsContainer) teamsContainer.style.display = 'none';
+    if (addTeamBtn) addTeamBtn.style.display = 'none';
+    if (playerTable) playerTable.style.display = 'block';
+    if (mvpDisplay) mvpDisplay.textContent = '1';
+  } else {
+    if (teamsContainer) teamsContainer.style.display = 'block';
+    if (addTeamBtn) addTeamBtn.style.display = 'inline-block';
+    if (playerTable) playerTable.style.display = 'none';
+    if (mvpDisplay) mvpDisplay.textContent = '2';
+  }
+  enforceMVPLimit();
+}
+
+function enforceMVPLimit() {
+  const maxMVP = matchMode === 'player' ? 1 : 2;
+  const maxPerTeam = matchMode === 'player' ? 1 : 1;
+  const containers = ['#matchPlayersBody', '#newMatchTeamsContainer', '#editMatchPlayersBody', '#editTeamsContainer'];
+  const checkboxes = [];
+  containers.forEach(sel => {
+    document.querySelectorAll(sel + ' .p-winner').forEach(cb => checkboxes.push(cb));
+  });
+  const checked = Array.from(checkboxes).filter(cb => cb.checked);
+
+  // Enforce per-team limit (1 MVP per team in team mode)
+  const teamMVPCount = {};
+  checked.forEach(cb => {
+    const teamBlock = cb.closest('.team-block');
+    const teamName = teamBlock ? (teamBlock.querySelector('.team-auto-label')?.textContent.trim() || 'unknown') : 'solo';
+    teamMVPCount[teamName] = (teamMVPCount[teamName] || 0) + 1;
+    if (teamMVPCount[teamName] > maxPerTeam) {
+      cb.checked = false;
+    }
+  });
+
+  // Enforce total MVP limit
+  const stillChecked = Array.from(checkboxes).filter(cb => cb.checked);
+  if (stillChecked.length > maxMVP) {
+    stillChecked[stillChecked.length - 1].checked = false;
+  }
+}
+
+// ==========================================
+// 10. New Match Modal
 // ==========================================
 document.getElementById('btnOpenNewMatch').addEventListener('click', () => {
   if (state.games.length === 0) { alert('Please create a game first!'); return; }
@@ -594,15 +675,40 @@ document.getElementById('btnOpenNewMatch').addEventListener('click', () => {
 });
 
 function openNewMatchModal() {
+  matchMode = 'team';
+  document.getElementById('matchMode').value = 'team';
   matchGameSelect.value = state.selectedGame ? state.selectedGame.id : state.games[0].id;
   document.getElementById('matchPlayedAt').value = new Date().toISOString().slice(0,16);
   document.getElementById('matchTitle').value  = '';
   document.getElementById('matchNotes').value  = '';
   onMatchGameChanged();
+  updateMatchMode();
   matchModal.style.display = 'flex';
 }
 
 matchGameSelect.addEventListener('change', onMatchGameChanged);
+
+document.getElementById('matchMode').addEventListener('change', (e) => {
+  matchMode = e.target.value;
+  updateMatchMode();
+  if (matchMode === 'player') {
+    // Switch to player mode: clear teams, show standalone players
+    document.getElementById('newMatchTeamsContainer').innerHTML = '';
+    matchPlayersBody.innerHTML = '';
+    const game = state.games.find(g => g.id === matchGameSelect.value) || state.selectedGame;
+    const cat = game ? game.category : 'board';
+    matchPlayersBody.appendChild(buildPlayerRow(cat, 1));
+    matchPlayersBody.appendChild(buildPlayerRow(cat, 2));
+  } else {
+    // Switch to team mode: clear standalone players, show one team
+    matchPlayersBody.innerHTML = '';
+    const game = state.games.find(g => g.id === matchGameSelect.value) || state.selectedGame;
+    const cat = game ? game.category : 'board';
+    const teamsContainer = document.getElementById('newMatchTeamsContainer');
+    teamsContainer.innerHTML = '';
+    buildTeamBlock('', cat, [{}, {}], teamsContainer);
+  }
+});
 
 function onMatchGameChanged() {
   const game = state.games.find(g => g.id === matchGameSelect.value) || state.selectedGame;
@@ -611,10 +717,14 @@ function onMatchGameChanged() {
   modalCategoryBadge.className   = `badge-display badge-${game.category}`;
   matchPlayersHead.innerHTML = getPlayerHeaders(game.category);
   matchPlayersBody.innerHTML = '';
-  // Start with one team block containing 2 players already added
   const teamsContainer = document.getElementById('newMatchTeamsContainer');
   teamsContainer.innerHTML = '';
-  buildTeamBlock('', game.category, [{}, {}], teamsContainer);
+  if (matchMode === 'player') {
+    matchPlayersBody.appendChild(buildPlayerRow(game.category, 1));
+    matchPlayersBody.appendChild(buildPlayerRow(game.category, 2));
+  } else {
+    buildTeamBlock('', game.category, [{}, {}], teamsContainer);
+  }
 }
 
 document.getElementById('btnAddTeam').addEventListener('click', () => {
@@ -629,15 +739,19 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
   const game   = state.games.find(g => g.id === gameId);
   const cat    = game ? game.category : 'board';
 
-  // Collect standalone players
-  let players = collectPlayers(matchPlayersBody, cat, null);
-
-  // Collect team players
-  document.querySelectorAll('#newMatchTeamsContainer .team-block').forEach(block => {
-    const teamName = block.querySelector('.team-auto-label')?.textContent.trim() || 'Team';
-    const tbody    = block.querySelector('tbody');
-    players = players.concat(collectPlayers(tbody, cat, teamName));
-  });
+  let players = [];
+  if (matchMode === 'player') {
+    players = collectPlayers(matchPlayersBody, cat, null);
+  } else {
+    document.querySelectorAll('#newMatchTeamsContainer .team-block').forEach(block => {
+      const teamName = block.querySelector('.team-auto-label')?.textContent.trim() || 'Team';
+      const isWinner = block.querySelector('.team-winner-check')?.checked || false;
+      const tbody    = block.querySelector('tbody');
+      const teamPlayers = collectPlayers(tbody, cat, teamName);
+      teamPlayers.forEach(p => p.is_winner = isWinner);
+      players = players.concat(teamPlayers);
+    });
+  }
 
   const payload = {
     game_id:       gameId,
@@ -656,58 +770,54 @@ document.getElementById('matchForm').addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 10. Edit Match Modal
+// 11. Edit Match Modal
 // ==========================================
 function openEditMatchModal(m) {
+  const cat = m.game_category || m.category || 'board';
   document.getElementById('editMatchId').value       = m.id;
-  document.getElementById('editMatchCategory').value = m.category;
+  document.getElementById('editMatchCategory').value = cat;
   document.getElementById('editMatchTitle').value    = m.title || '';
   document.getElementById('editMatchNotes').value    = m.notes || '';
-  document.getElementById('editMatchOutcome').value  = m.outcome || 'completed';
+  document.getElementById('editMatchOutcome').value  = m.match_outcome || m.outcome || 'completed';
   document.getElementById('editMatchError').style.display = 'none';
 
-  // Populate game dropdown
+  // Determine mode from existing data
+  const hasTeams = (m.players || []).some(p => p.team_name);
+  matchMode = hasTeams ? 'team' : 'player';
+
+  // Populate game dropdown — always use the match's stored game_id
   const editGameSelect = document.getElementById('editMatchGameSelect');
   editGameSelect.innerHTML = '';
   state.games.forEach(g => {
     const opt = document.createElement('option');
     opt.value = g.id;
     opt.textContent = g.name;
-    // select the game that matches this match's category (best guess by matching current game)
-    if (g.category === m.category && !editGameSelect.value) opt.selected = true;
     editGameSelect.appendChild(opt);
   });
-  // Try to find the game by stored game_id if available
-  if (m.game_id) editGameSelect.value = m.game_id;
 
-  // Set category badge
-  const selGame = state.games.find(g => g.id === editGameSelect.value) || state.games[0];
+  // Set category badge from the match's stored category
   const editBadge = document.getElementById('editModalCategoryBadge');
-  if (editBadge && selGame) {
-    editBadge.textContent = selGame.category.toUpperCase();
-    editBadge.className = `badge-display badge-${selGame.category}`;
+  if (editBadge) {
+    editBadge.textContent = cat.toUpperCase();
+    editBadge.className = `badge-display badge-${cat}`;
   }
 
-  // When game changes, rebuild player headers
-  editGameSelect.onchange = () => {
-    const g = state.games.find(g => g.id === editGameSelect.value);
-    if (!g) return;
-    document.getElementById('editMatchCategory').value = g.category;
-    if (editBadge) { editBadge.textContent = g.category.toUpperCase(); editBadge.className = `badge-display badge-${g.category}`; }
-    document.getElementById('editMatchPlayersHead').innerHTML = getPlayerHeaders(g.category);
-    document.getElementById('editMatchPlayersBody').innerHTML = '';
-    document.getElementById('editTeamsContainer').innerHTML = '';
-    document.getElementById('editMatchPlayersBody').appendChild(buildPlayerRow(g.category, 1));
-  };
+  // Use the match's game_id, or find a game with matching category
+  let initialGameId;
+  if (m.game_id && state.games.find(g => g.id === m.game_id)) {
+    initialGameId = m.game_id;
+  } else {
+    const catMatch = state.games.find(g => g.category === cat);
+    initialGameId = catMatch ? catMatch.id : (state.games[0]?.id || '');
+  }
 
-  // Set date
+  editGameSelect.value = initialGameId;
+
   const dt = document.getElementById('editMatchPlayedAt');
   try { dt.value = new Date(m.played_at).toISOString().slice(0,16); } catch(e) { dt.value = ''; }
 
-  const cat     = m.category;
   const players = m.players || [];
 
-  // Rebuild headers
   document.getElementById('editMatchPlayersHead').innerHTML = getPlayerHeaders(cat);
   document.getElementById('editMatchPlayersBody').innerHTML = '';
   document.getElementById('editTeamsContainer').innerHTML   = '';
@@ -720,26 +830,29 @@ function openEditMatchModal(m) {
     teamMap[p.team_name].push(p);
   });
 
-  // Render standalone players
-  const editBody = document.getElementById('editMatchPlayersBody');
-  noTeam.forEach((p, i) => editBody.appendChild(buildPlayerRow(cat, i+1, p)));
-  if (noTeam.length === 0) editBody.appendChild(buildPlayerRow(cat, 1));
+  // Render standalone players only if there are solo players
+  if (noTeam.length > 0) {
+    const editBody = document.getElementById('editMatchPlayersBody');
+    noTeam.forEach((p, i) => editBody.appendChild(buildPlayerRow(cat, i+1, p)));
+  }
 
-  // Render teams
-  const teamsContainer = document.getElementById('editTeamsContainer');
-  Object.entries(teamMap).forEach(([name, tPlayers]) => {
-    buildTeamBlock(name, cat, tPlayers, teamsContainer);
-  });
+  // Render teams only if there are teams
+  if (Object.keys(teamMap).length > 0) {
+    const teamsContainer = document.getElementById('editTeamsContainer');
+    Object.entries(teamMap).forEach(([name, tPlayers]) => {
+      buildTeamBlock(name, cat, tPlayers, teamsContainer);
+    });
+  }
 
   // Wire add-player and add-team buttons
   document.getElementById('btnEditAddPlayerRow').onclick = () => {
     const curCat = document.getElementById('editMatchCategory').value;
-    const n = editBody.children.length + 1;
-    editBody.appendChild(buildPlayerRow(curCat, n));
+    const n = document.getElementById('editMatchPlayersBody').children.length + 1;
+    document.getElementById('editMatchPlayersBody').appendChild(buildPlayerRow(curCat, n));
   };
   document.getElementById('btnEditAddTeam').onclick = () => {
     const curCat = document.getElementById('editMatchCategory').value;
-    buildTeamBlock('', curCat, [], teamsContainer);
+    buildTeamBlock('', curCat, [], document.getElementById('editTeamsContainer'));
   };
 
   document.getElementById('editMatchModal').style.display = 'flex';
@@ -753,8 +866,10 @@ document.getElementById('editMatchForm').addEventListener('submit', async (e) =>
   const errEl  = document.getElementById('editMatchError');
   errEl.style.display = 'none';
 
+  let players = [];
   // Collect standalone players
-  let players = collectPlayers(document.getElementById('editMatchPlayersBody'), cat, null);
+  const standalonePlayers = collectPlayers(document.getElementById('editMatchPlayersBody'), cat, null);
+  players = players.concat(standalonePlayers);
 
   // Collect team players
   document.querySelectorAll('#editTeamsContainer .team-block').forEach(block => {
@@ -786,7 +901,7 @@ document.getElementById('editMatchForm').addEventListener('submit', async (e) =>
 });
 
 // ==========================================
-// 11. Create Game Modal
+// 12. Create Game Modal
 // ==========================================
 document.getElementById('btnOpenNewGame').addEventListener('click', () => {
   document.getElementById('newGameName').value = '';
@@ -807,7 +922,7 @@ document.getElementById('gameForm').addEventListener('submit', async (e) => {
 });
 
 // ==========================================
-// 12. Modal close + Delete Game
+// 13. Modal close + Delete Game + Leaderboard Sort
 // ==========================================
 document.querySelectorAll('[data-close]').forEach(btn => {
   btn.addEventListener('click', (e) => {
@@ -825,6 +940,10 @@ document.getElementById('btnDeleteGame')?.addEventListener('click', async () => 
       await loadGames();
     } catch (err) { alert(`Failed to delete game: ${err.message}`); }
   }
+});
+
+document.getElementById('leaderboardSort')?.addEventListener('change', () => {
+  renderLeaderboard();
 });
 
 // ==========================================

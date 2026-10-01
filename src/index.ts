@@ -455,6 +455,27 @@ app.get('/api/stats', async (c) => {
   return c.json({ game, stats: formattedStats });
 });
 
+// Delete a single player from a match (owner or admin)
+app.delete('/api/matches/:matchId/players/:playerId', async (c) => {
+  const user = c.get('user')!;
+  const { matchId, playerId } = c.req.param();
+
+  const match: any = await c.env.DB.prepare('SELECT user_id FROM matches WHERE id = ?').bind(matchId).first();
+  if (!match) {
+    return c.json({ error: 'Match not found' }, 404);
+  }
+
+  const isAdmin = user.username.toLowerCase() === 'admin';
+  const isOwner = match.user_id === user.id;
+
+  if (!isAdmin && !isOwner) {
+    return c.json({ error: 'Forbidden: You can only modify your own match records' }, 403);
+  }
+
+  await c.env.DB.prepare('DELETE FROM match_players WHERE id = ? AND match_id = ?').bind(playerId, matchId).run();
+  return c.json({ success: true });
+});
+
 // ----------------------------------------------------
 // 5. PLAYER MODERATION ROUTE (ADMIN ONLY)
 // ----------------------------------------------------

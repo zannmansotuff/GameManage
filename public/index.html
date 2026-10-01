@@ -117,6 +117,11 @@
       <section class="section-card">
         <div class="section-header">
           <h2>🏆 Leaderboard & Player Stats</h2>
+          <select id="leaderboardSort" class="game-dropdown">
+            <option value="wins">Match Wins</option>
+            <option value="kd">K/D</option>
+            <option value="win_rate">Win Rate</option>
+          </select>
         </div>
         <div class="table-responsive">
           <table class="data-table" id="leaderboardTable">
@@ -186,6 +191,20 @@
             <div class="form-group flex-2">
               <label for="matchNotes">Notes / Highlights (Optional)</label>
               <input type="text" id="matchNotes" placeholder="e.g. 4-player game, Longest road contest">
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-1">
+              <label for="matchMode">Mode</label>
+              <select id="matchMode">
+                <option value="player">Player Mode (1v1v1v1)</option>
+                <option value="team" selected>Team Mode</option>
+              </select>
+            </div>
+            <div class="form-group flex-1">
+              <label>MVP Limit</label>
+              <span id="mvpLimitDisplay" class="badge-display">2</span>
             </div>
           </div>
 
