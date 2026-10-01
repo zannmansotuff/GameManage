@@ -830,7 +830,6 @@ function openEditMatchModal(m) {
     teamMap[p.team_name].push(p);
   });
 
-  const hasTeams = Object.keys(teamMap).length > 0;
   const hasNoTeam = noTeam.length > 0;
 
   // Show/hide sections based on what the match contains
