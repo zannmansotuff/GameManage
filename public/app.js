@@ -649,20 +649,26 @@ function enforceMVPLimit() {
   const checked = Array.from(checkboxes).filter(cb => cb.checked);
 
   // Enforce per-team limit (1 MVP per team in team mode)
-  const teamMVPCount = {};
+  // For each team, keep only the first checked MVP, uncheck the rest
+  const teamMVPs = {};
   checked.forEach(cb => {
     const teamBlock = cb.closest('.team-block');
     const teamName = teamBlock ? (teamBlock.querySelector('.team-auto-label')?.textContent.trim() || 'unknown') : 'solo';
-    teamMVPCount[teamName] = (teamMVPCount[teamName] || 0) + 1;
-    if (teamMVPCount[teamName] > maxPerTeam) {
-      cb.checked = false;
-    }
+    if (!teamMVPs[teamName]) teamMVPs[teamName] = [];
+    teamMVPs[teamName].push(cb);
   });
 
-  // Enforce total MVP limit
+  // For each team, keep only the first MVP, uncheck the rest
+  Object.values(teamMVPs).forEach(mvps => {
+    mvps.forEach((cb, idx) => {
+      if (idx >= maxPerTeam) cb.checked = false;
+    });
+  });
+
+  // Enforce total MVP limit - uncheck extras beyond maxMVP
   const stillChecked = Array.from(checkboxes).filter(cb => cb.checked);
   if (stillChecked.length > maxMVP) {
-    stillChecked[stillChecked.length - 1].checked = false;
+    stillChecked.slice(maxMVP).forEach(cb => { cb.checked = false; });
   }
 }
 
