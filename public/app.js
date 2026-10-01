@@ -830,15 +830,23 @@ function openEditMatchModal(m) {
     teamMap[p.team_name].push(p);
   });
 
-  // Render standalone players only if there are solo players
-  if (noTeam.length > 0) {
+  const hasTeams = Object.keys(teamMap).length > 0;
+  const hasNoTeam = noTeam.length > 0;
+
+  // Show/hide sections based on what the match contains
+  const noTeamBlock = document.getElementById('editNoTeamBlock');
+  const teamsContainer = document.getElementById('editTeamsContainer');
+  if (noTeamBlock) noTeamBlock.style.display = hasNoTeam ? 'block' : 'none';
+  if (teamsContainer) teamsContainer.style.display = hasTeams ? 'block' : 'none';
+
+  // Render standalone players
+  if (hasNoTeam) {
     const editBody = document.getElementById('editMatchPlayersBody');
     noTeam.forEach((p, i) => editBody.appendChild(buildPlayerRow(cat, i+1, p)));
   }
 
-  // Render teams only if there are teams
-  if (Object.keys(teamMap).length > 0) {
-    const teamsContainer = document.getElementById('editTeamsContainer');
+  // Render teams
+  if (hasTeams) {
     Object.entries(teamMap).forEach(([name, tPlayers]) => {
       buildTeamBlock(name, cat, tPlayers, teamsContainer);
     });
