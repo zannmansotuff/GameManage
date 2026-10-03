@@ -87,6 +87,45 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* Blended game-themed background */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    /* CS2 orange/amber tones — top right */
+    radial-gradient(ellipse 60% 50% at 85% 0%, rgba(255, 140, 0, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 35% at 70% 10%, rgba(255, 180, 50, 0.06) 0%, transparent 60%),
+    /* Valorant red/pink tones — bottom left */
+    radial-gradient(ellipse 55% 45% at 10% 90%, rgba(255, 45, 85, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 35% at 25% 85%, rgba(255, 70, 100, 0.06) 0%, transparent 60%),
+    /* Central purple accent */
+    radial-gradient(ellipse 30% 25% at 50% 50%, rgba(167, 139, 250, 0.04) 0%, transparent 60%),
+    /* Subtle diagonal lines pattern */
+    repeating-linear-gradient(
+      135deg,
+      transparent,
+      transparent 100px,
+      rgba(255, 255, 255, 0.008) 100px,
+      rgba(255, 255, 255, 0.008) 101px
+    ),
+    /* Base background */
+    var(--bg-main);
+  pointer-events: none;
+}
+
+/* Subtle vignette overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(ellipse 80% 70% at 50% 50%, transparent 50%, rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
 }
 
 /* Custom scrollbar */
