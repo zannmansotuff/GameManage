@@ -117,15 +117,7 @@ body::before {
   pointer-events: none;
 }
 
-/* Subtle vignette overlay */
-body::after {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background: radial-gradient(ellipse 80% 70% at 50% 50%, transparent 50%, rgba(0, 0, 0, 0.2) 100%);
-  pointer-events: none;
-}
+
 
 /* Custom scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
