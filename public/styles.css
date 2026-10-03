@@ -78,7 +78,6 @@ html { scroll-behavior: smooth; }
 
 body {
   font-family: var(--font-display);
-  background-color: var(--bg-main);
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
