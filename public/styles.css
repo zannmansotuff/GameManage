@@ -137,13 +137,24 @@ body {
   filter: drop-shadow(0 0 8px var(--primary-glow));
 }
 
-.logo-text { color: var(--text-main); }
+.logo-svg {
+  display: block;
+  filter: drop-shadow(0 2px 8px var(--primary-glow));
+  flex-shrink: 0;
+}
+
+.logo-text {
+  color: var(--text-main);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
 .logo-text strong {
-  color: var(--primary);
   background: linear-gradient(135deg, var(--primary), var(--purple));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  font-weight: 900;
 }
 
 .nav-controls {
