@@ -7,9 +7,9 @@
 :root,
 [data-theme="dark"] {
   --bg-main: #06080f;
-  --bg-card: rgba(13, 17, 28, 0.92);
+  --bg-card: rgba(12, 16, 28, 0.82);
   --bg-card-solid: #0d111c;
-  --bg-card-2: rgba(22, 27, 42, 0.6);
+  --bg-card-2: rgba(20, 25, 40, 0.70);
   --bg-input: rgba(26, 32, 50, 0.7);
   --bg-hover: rgba(35, 42, 65, 0.5);
   --text-main: #f0f2f8;
@@ -89,32 +89,43 @@ body {
   position: relative;
 }
 
-/* Blended game-themed background */
+/* Blended Unblurred CS2 & Valorant Background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    /* CS2 orange/amber tones — top right */
-    radial-gradient(ellipse 70% 60% at 85% 0%, rgba(255, 140, 0, 0.18) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 70% 10%, rgba(255, 180, 50, 0.12) 0%, transparent 60%),
-    /* Valorant red/pink tones — bottom left */
-    radial-gradient(ellipse 65% 55% at 10% 90%, rgba(255, 45, 85, 0.18) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 25% 85%, rgba(255, 70, 100, 0.12) 0%, transparent 60%),
-    /* Central purple accent */
-    radial-gradient(ellipse 40% 35% at 50% 50%, rgba(167, 139, 250, 0.08) 0%, transparent 60%),
-    /* Subtle diagonal lines pattern */
-    repeating-linear-gradient(
-      135deg,
-      transparent,
-      transparent 100px,
-      rgba(255, 255, 255, 0.015) 100px,
-      rgba(255, 255, 255, 0.015) 101px
+    /* Professional dark cinematic overlay - preserves character details while ensuring readability */
+    linear-gradient(
+      180deg,
+      rgba(6, 8, 15, 0.58) 0%,
+      rgba(6, 8, 15, 0.72) 35%,
+      rgba(6, 8, 15, 0.85) 100%
     ),
-    /* Base background */
-    var(--bg-main);
+    /* Subtle atmospheric glows matching characters: Cyan on Valorant left, Golden Amber on CS2 right */
+    radial-gradient(circle at 18% 35%, rgba(0, 212, 255, 0.15) 0%, transparent 50%),
+    radial-gradient(circle at 82% 38%, rgba(255, 140, 0, 0.15) 0%, transparent 50%),
+    url('bg-gaming.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
   pointer-events: none;
+}
+
+[data-theme="light"] body::before {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(240, 242, 248, 0.84) 0%,
+      rgba(240, 242, 248, 0.93) 100%
+    ),
+    url('bg-gaming.jpg');
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 
@@ -139,6 +150,8 @@ body::before {
    ============================================ */
 .navbar {
   background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border);
   padding: 0.7rem 1.75rem;
   display: flex;
@@ -284,6 +297,8 @@ body::before {
   max-width: 420px;
   margin: 0 auto;
   background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 2.5rem 2rem;
@@ -320,6 +335,8 @@ body::before {
    ============================================ */
 .game-banner {
   background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 1.5rem 1.75rem;
@@ -340,6 +357,8 @@ body::before {
    ============================================ */
 .section-card {
   background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
   padding: 1.5rem;
