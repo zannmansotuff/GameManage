@@ -6,12 +6,12 @@
 
 :root,
 [data-theme="dark"] {
-  --bg-main: #06080f;
-  --bg-card: rgba(12, 16, 28, 0.82);
-  --bg-card-solid: #0d111c;
-  --bg-card-2: rgba(20, 25, 40, 0.70);
-  --bg-input: rgba(26, 32, 50, 0.7);
-  --bg-hover: rgba(35, 42, 65, 0.5);
+  --bg-main: transparent;
+  --bg-card: rgba(8, 11, 22, 0.62);
+  --bg-card-solid: rgba(10, 14, 26, 0.80);
+  --bg-card-2: rgba(14, 18, 34, 0.55);
+  --bg-input: rgba(18, 22, 42, 0.65);
+  --bg-hover: rgba(28, 34, 58, 0.55);
   --text-main: #f0f2f8;
   --text-muted: #8b92a8;
   --text-dim: #565b70;
@@ -74,10 +74,11 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; background: #06080f; }
 
 body {
   font-family: var(--font-display);
+  background: transparent;
   color: var(--text-main);
   min-height: 100vh;
   display: flex;
@@ -89,23 +90,24 @@ body {
   position: relative;
 }
 
-/* Blended Unblurred CS2 & Valorant Background */
+/* Blended Unblurred Background */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
   z-index: -1;
   background:
-    /* Professional dark cinematic overlay - preserves character details while ensuring readability */
+    /* Light cinematic overlay — just enough to keep text readable, image stays vivid */
     linear-gradient(
       180deg,
-      rgba(6, 8, 15, 0.58) 0%,
-      rgba(6, 8, 15, 0.72) 35%,
-      rgba(6, 8, 15, 0.85) 100%
+      rgba(6, 8, 15, 0.30) 0%,
+      rgba(6, 8, 15, 0.20) 40%,
+      rgba(6, 8, 15, 0.50) 100%
     ),
-    /* Subtle atmospheric glows matching characters: Cyan on Valorant left, Golden Amber on CS2 right */
-    radial-gradient(circle at 18% 35%, rgba(0, 212, 255, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 82% 38%, rgba(255, 140, 0, 0.15) 0%, transparent 50%),
+    /* Atmospheric colour glows that blend with the image */
+    radial-gradient(ellipse 60% 55% at 15% 40%, rgba(0, 212, 255, 0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 55% 50% at 85% 38%, rgba(255, 120, 30, 0.10) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 50% 100%, rgba(6, 8, 15, 0.55) 0%, transparent 60%),
     url('bg-gaming.jpg');
   background-size: cover;
   background-position: center top;
@@ -116,10 +118,12 @@ body::before {
 
 [data-theme="light"] body::before {
   background:
+    /* Light mode: very subtle white wash so text stays legible without killing the image */
     linear-gradient(
       180deg,
-      rgba(240, 242, 248, 0.84) 0%,
-      rgba(240, 242, 248, 0.93) 100%
+      rgba(240, 242, 248, 0.55) 0%,
+      rgba(240, 242, 248, 0.45) 50%,
+      rgba(240, 242, 248, 0.70) 100%
     ),
     url('bg-gaming.jpg');
   background-size: cover;
