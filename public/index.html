@@ -156,6 +156,26 @@
         <div class="section-header">
           <h2>📜 Match Records History</h2>
         </div>
+
+        <!-- Match Search & Filter Toolbar -->
+        <div class="matches-toolbar">
+          <div class="search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="matchSearchInput" placeholder="Search by player, title, or notes..." class="search-input">
+            <button type="button" id="btnClearSearch" class="btn-clear-search" style="display: none;" title="Clear search">&times;</button>
+          </div>
+          <div class="filter-controls">
+            <select id="matchOutcomeFilter" class="filter-dropdown">
+              <option value="all">All Outcomes</option>
+              <option value="win">Victories (Win)</option>
+              <option value="loss">Defeats (Loss)</option>
+              <option value="draw">Draws</option>
+              <option value="completed">Completed</option>
+            </select>
+            <span id="matchFilterCount" class="filter-count"></span>
+          </div>
+        </div>
+
         <div id="matchesList" class="matches-list">
           <div class="empty-state">No matches logged yet. Click "+ Log Match Result" to record your first game!</div>
         </div>

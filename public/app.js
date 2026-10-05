@@ -296,11 +296,49 @@ function renderLeaderboard() {
 // 5. Matches Feed
 // ==========================================
 function renderMatchesList() {
+  const query = document.getElementById('matchSearchInput')?.value.trim().toLowerCase() || '';
+  const outcome = document.getElementById('matchOutcomeFilter')?.value || 'all';
+
+  const btnClear = document.getElementById('btnClearSearch');
+  if (btnClear) btnClear.style.display = query ? 'block' : 'none';
+
   if (state.matches.length === 0) {
+    const countEl = document.getElementById('matchFilterCount');
+    if (countEl) countEl.textContent = '';
     matchesList.innerHTML = '<div class="empty-state">No match records yet. Click "+ Log Match Result" above!</div>';
     return;
   }
-  matchesList.innerHTML = state.matches.map((m) => {
+
+  const filtered = state.matches.filter(m => {
+    if (outcome !== 'all' && m.match_outcome !== outcome) return false;
+    if (query) {
+      const titleMatch = (m.title || '').toLowerCase().includes(query);
+      const notesMatch = (m.notes || '').toLowerCase().includes(query);
+      const loggedByMatch = (m.logged_by || '').toLowerCase().includes(query);
+      const playerMatch = (m.players || []).some(p =>
+        (p.player_name || '').toLowerCase().includes(query) ||
+        (p.team_name || '').toLowerCase().includes(query) ||
+        (p.extra_stats?.class || '').toLowerCase().includes(query) ||
+        (p.extra_stats?.character || '').toLowerCase().includes(query)
+      );
+      if (!titleMatch && !notesMatch && !loggedByMatch && !playerMatch) return false;
+    }
+    return true;
+  });
+
+  const countEl = document.getElementById('matchFilterCount');
+  if (countEl) {
+    countEl.textContent = filtered.length === state.matches.length
+      ? `${state.matches.length} matches`
+      : `${filtered.length} of ${state.matches.length} matches`;
+  }
+
+  if (filtered.length === 0) {
+    matchesList.innerHTML = '<div class="empty-state">🔍 No matches match your search or filter criteria.</div>';
+    return;
+  }
+
+  matchesList.innerHTML = filtered.map((m) => {
     matchDataStore[m.id] = m;
     const dateStr = new Date(m.played_at).toLocaleString(undefined, { month:'short', day:'numeric', year:'numeric', hour:'2-digit', minute:'2-digit' });
     const cat = m.game_category;
@@ -425,6 +463,15 @@ function renderMatchesList() {
     });
   });
 }
+
+// Search and Filter Listeners
+document.getElementById('matchSearchInput')?.addEventListener('input', () => renderMatchesList());
+document.getElementById('matchOutcomeFilter')?.addEventListener('change', () => renderMatchesList());
+document.getElementById('btnClearSearch')?.addEventListener('click', () => {
+  const input = document.getElementById('matchSearchInput');
+  if (input) input.value = '';
+  renderMatchesList();
+});
 
 // ==========================================
 // 6. Auto-Refresh Timer
