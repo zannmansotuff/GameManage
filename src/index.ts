@@ -373,8 +373,8 @@ app.put('/api/matches/:id', async (c) => {
       const extraStats = p.extra_stats ? JSON.stringify(p.extra_stats) : null;
       return c.env.DB.prepare(
         `INSERT INTO match_players
-         (id, match_id, player_name, score, rank, is_winner, kills, deaths, assists, money, extra_stats, notes)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (id, match_id, player_name, score, rank, is_winner, kills, deaths, assists, money, extra_stats, notes, team_name)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(
         playerId, id,
         p.player_name || 'Anonymous',
@@ -384,7 +384,8 @@ app.put('/api/matches/:id', async (c) => {
         p.assists !== undefined ? Number(p.assists) : null,
         p.money !== undefined ? Number(p.money) : null,
         extraStats,
-        p.notes || null
+        p.notes || null,
+        p.team_name || null
       );
     });
 

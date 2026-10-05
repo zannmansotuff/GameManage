@@ -251,16 +251,21 @@ function renderLeaderboard() {
   const cat = state.selectedGame.category;
   const sortBy = document.getElementById('leaderboardSort')?.value || 'wins';
   const sorted = sortStats(state.stats, sortBy);
+  const isAdmin = state.user && (state.user.is_admin || state.user.username.toLowerCase() === 'admin');
+  const adminTh = isAdmin ? '<th style="width:40px"></th>' : '';
+  const deleteBtn = (name) => isAdmin
+    ? `<td><button class="btn-icon btn-delete-player" data-name="${escapeHtml(name)}" title="Remove player from leaderboard">🗑️</button></td>`
+    : '';
 
   if (cat === 'fps') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches (W/L)</th><th>Kills/Deaths</th><th>K/D</th><th>Assists</th><th>Win Rate</th>${adminTh}</tr>`;
   } else if (cat === 'rpg') {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Quests</th><th>Cleared</th><th>Total XP</th><th>Total Gold</th><th>Win Rate</th>${adminTh}</tr>`;
   } else {
-    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th></tr>`;
+    leaderboardHead.innerHTML = `<tr><th>Rank</th><th>Player</th><th>Matches</th><th>Wins</th><th>Avg Score</th><th>Avg Money</th><th>Win Rate</th>${adminTh}</tr>`;
   }
   if (sorted.length === 0) {
-    leaderboardBody.innerHTML = `<tr><td colspan="7" class="text-center">No matches recorded yet.</td></tr>`;
+    leaderboardBody.innerHTML = `<tr><td colspan="8" class="text-center">No matches recorded yet.</td></tr>`;
     return;
   }
   leaderboardBody.innerHTML = sorted.map((row, idx) => {
@@ -274,22 +279,38 @@ function renderLeaderboard() {
       <td>${row.total_kills||0}/${row.total_deaths||0}</td>
       <td><span class="badge badge-fps" ${kdStyle}>${row.kd_ratio}</span></td>
       <td>${row.total_assists||0}</td>
-      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td>
+      ${deleteBtn(row.player_name)}</tr>`;
     if (cat === 'rpg') return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
       <td>${row.matches_played}</td><td>${row.wins} Cleared</td>
       <td>${row.total_kills||row.avg_score}</td>
       <td>${row.total_money?`$${Number(row.total_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td>
+      ${deleteBtn(row.player_name)}</tr>`;
     return `<tr>
       <td><span class="rank-cell">${medal}</span></td>
       <td><strong>${escapeHtml(row.player_name)}</strong></td>
       <td>${row.matches_played}</td><td>${row.wins} Wins</td>
       <td>${row.avg_score}</td>
       <td>${row.avg_money?`$${Number(row.avg_money).toLocaleString()}`:'—'}</td>
-      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td></tr>`;
+      <td><span class="win-rate-pill" ${wrStyle}>${row.win_rate}%</span></td>
+      ${deleteBtn(row.player_name)}</tr>`;
   }).join('');
+
+  // Wire up admin delete player buttons
+  document.querySelectorAll('.btn-delete-player').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const name = e.currentTarget.getAttribute('data-name');
+      if (confirm(`Remove "${name}" and all their records from this game? This cannot be undone.`)) {
+        try {
+          await api(`/players?name=${encodeURIComponent(name)}&game_id=${state.selectedGame.id}`, { method: 'DELETE' });
+          await refreshGameData();
+        } catch (err) { alert(`Failed to delete player: ${err.message}`); }
+      }
+    });
+  });
 }
 
 // ==========================================
