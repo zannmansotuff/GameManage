@@ -148,6 +148,7 @@ async function initDashboard() {
     if (adminBadge) adminBadge.style.display = isAdmin ? 'inline-block' : 'none';
     if (btnDelGame)  btnDelGame.style.display  = isAdmin ? 'inline-block' : 'none';
     await loadGames();
+    await loadGroups();
     startAutoRefreshTimer();
   } catch (err) { logout(); }
 }
@@ -215,6 +216,7 @@ async function refreshGameData() {
     }
     renderLeaderboard();
     renderMatchesList();
+    renderGroupsPanel(); // refresh group panel on data reload
   } catch (err) { console.error('Error refreshing:', err); }
 }
 
@@ -540,10 +542,12 @@ function buildPlayerRow(category, rowNum, prefill) {
   const p  = prefill || {};
   const tr = document.createElement('tr');
   const ex = p.extra_stats || {};
+  // Use group members datalist if a group is active, else fall back to known players
+  const listId = groupState.activeGroup ? 'groupMembersList' : 'knownPlayersList';
   if (category === 'fps') {
     tr.innerHTML = `
       <td>${rowNum}</td>
-      <td><input type="text" class="p-name" placeholder="Player ${rowNum}" list="knownPlayersList" value="${escapeHtml(p.player_name||'')}" required></td>
+      <td><input type="text" class="p-name" placeholder="Player ${rowNum}" list="${listId}" value="${escapeHtml(p.player_name||'')}" required></td>
       <td><input type="number" class="p-kills"   min="0" value="${p.kills??0}"></td>
       <td><input type="number" class="p-deaths"  min="0" value="${p.deaths??0}"></td>
       <td><input type="number" class="p-assists" min="0" value="${p.assists??0}"></td>
@@ -553,7 +557,7 @@ function buildPlayerRow(category, rowNum, prefill) {
   } else if (category === 'rpg') {
     tr.innerHTML = `
       <td>${rowNum}</td>
-      <td><input type="text" class="p-name" placeholder="Hero Name" list="knownPlayersList" value="${escapeHtml(p.player_name||'')}" required></td>
+      <td><input type="text" class="p-name" placeholder="Hero Name" list="${listId}" value="${escapeHtml(p.player_name||'')}" required></td>
       <td><input type="text"   class="p-rpg-class" placeholder="e.g. Mage" value="${escapeHtml(ex.class||'')}"></td>
       <td><input type="number" class="p-rpg-level" min="1" value="${ex.level||1}"></td>
       <td><input type="number" class="p-rpg-xp"    value="${ex.xp||0}"></td>
@@ -562,7 +566,7 @@ function buildPlayerRow(category, rowNum, prefill) {
   } else {
     tr.innerHTML = `
       <td>${rowNum}</td>
-      <td><input type="text"   class="p-name"  placeholder="Player ${rowNum}" list="knownPlayersList" value="${escapeHtml(p.player_name||'')}" required></td>
+      <td><input type="text"   class="p-name"  placeholder="Player ${rowNum}" list="${listId}" value="${escapeHtml(p.player_name||'')}" required></td>
       <td><input type="number" class="p-score" step="any" value="${p.score??0}" required></td>
       <td><input type="number" class="p-money" step="any" placeholder="$" value="${p.money||''}"></td>
       <td><input type="number" class="p-rank"  min="1" value="${p.rank||rowNum}"></td>
@@ -755,6 +759,10 @@ function openNewMatchModal() {
   document.getElementById('matchPlayedAt').value = new Date().toISOString().slice(0,16);
   document.getElementById('matchTitle').value  = '';
   document.getElementById('matchNotes').value  = '';
+  // Reset group selection
+  const groupSel = document.getElementById('matchGroupSelect');
+  if (groupSel) groupSel.value = '';
+  groupState.activeGroup = null;
   onMatchGameChanged();
   updateMatchMode();
   matchModal.style.display = 'flex';
@@ -1039,3 +1047,355 @@ function escapeHtml(str) {
 // Startup
 // ==========================================
 if (state.token) initDashboard(); else showAuthScreen();
+
+// ==========================================
+// GROUP SYSTEM
+// ==========================================
+
+const groupState = {
+  groups: [],       // groups the current user belongs to
+  invites: [],      // pending invites for current user
+  activeGroup: null // group selected in match modal
+};
+
+// ---- Load groups + invites from API ----
+async function loadGroups() {
+  try {
+    const res = await api('/groups');
+    groupState.groups  = res.groups  || [];
+    groupState.invites = res.invites || [];
+    renderInvitesBanner();
+    renderGroupsPanel();
+    populateGroupSelectInMatchModal();
+  } catch (err) {
+    console.error('Failed to load groups:', err);
+  }
+}
+
+// ---- Invites banner (dashboard) ----
+function renderInvitesBanner() {
+  const banner = document.getElementById('invitesBanner');
+  if (!banner) return;
+  if (groupState.invites.length === 0) { banner.style.display = 'none'; return; }
+
+  banner.style.display = 'block';
+  banner.innerHTML = groupState.invites.map(inv => `
+    <div class="invite-item">
+      <span class="invite-text">📨 <strong>${escapeHtml(inv.group_name)}</strong> invited you to join their group</span>
+      <div class="invite-actions">
+        <button class="btn btn-primary btn-sm btn-accept-invite" data-id="${inv.id}">Accept</button>
+        <button class="btn btn-ghost btn-sm btn-decline-invite" data-id="${inv.id}">Decline</button>
+      </div>
+    </div>
+  `).join('');
+
+  banner.querySelectorAll('.btn-accept-invite').forEach(btn => {
+    btn.addEventListener('click', () => respondInvite(btn.dataset.id, 'accept'));
+  });
+  banner.querySelectorAll('.btn-decline-invite').forEach(btn => {
+    btn.addEventListener('click', () => respondInvite(btn.dataset.id, 'decline'));
+  });
+}
+
+async function respondInvite(inviteId, action) {
+  try {
+    await api(`/groups/invites/${inviteId}`, { method: 'PUT', body: JSON.stringify({ action }) });
+    await loadGroups();
+  } catch (err) { alert(`Failed to ${action} invite: ${err.message}`); }
+}
+
+// ---- Groups panel (dashboard section) ----
+function renderGroupsPanel() {
+  const panel = document.getElementById('groupsPanel');
+  const list  = document.getElementById('groupsList');
+  if (!panel || !list) return;
+
+  // Show panel only when user has groups or invites
+  panel.style.display = (groupState.groups.length > 0 || groupState.invites.length > 0) ? 'block' : 'none';
+
+  if (groupState.groups.length === 0) {
+    list.innerHTML = '<div class="empty-state">No groups yet. Create one or accept an invite.</div>';
+    return;
+  }
+
+  list.innerHTML = groupState.groups.map(g => {
+    const memberNames = (g.members || []).map(m => escapeHtml(m.username)).join(', ');
+    const isOwner = g.is_owner;
+    return `
+      <div class="group-card">
+        <div class="group-card-left">
+          <span class="group-avatar">${escapeHtml(g.name.charAt(0).toUpperCase())}</span>
+          <div>
+            <div class="group-name">${escapeHtml(g.name)}</div>
+            <div class="group-meta">${g.member_count} member${g.member_count !== 1 ? 's' : ''}${memberNames ? ' · ' + memberNames : ''}</div>
+          </div>
+        </div>
+        <div class="group-card-right">
+          ${isOwner ? `<button class="btn btn-secondary btn-sm btn-manage-group" data-id="${g.id}" data-name="${escapeHtml(g.name)}">⚙️ Manage</button>` : `<button class="btn btn-ghost btn-sm btn-leave-group" data-id="${g.id}">Leave</button>`}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.btn-manage-group').forEach(btn => {
+    btn.addEventListener('click', () => openManageGroupModal(btn.dataset.id, btn.dataset.name));
+  });
+  list.querySelectorAll('.btn-leave-group').forEach(btn => {
+    btn.addEventListener('click', () => leaveGroup(btn.dataset.id));
+  });
+}
+
+// ---- Populate group dropdown in match modal ----
+function populateGroupSelectInMatchModal() {
+  const sel = document.getElementById('matchGroupSelect');
+  if (!sel) return;
+  // Keep first placeholder option
+  sel.innerHTML = '<option value="">— No group / open match —</option>';
+  groupState.groups.forEach(g => {
+    const opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name;
+    sel.appendChild(opt);
+  });
+}
+
+// When group changes in match modal, update the player name datalist
+document.getElementById('matchGroupSelect')?.addEventListener('change', (e) => {
+  const gId = e.target.value;
+  groupState.activeGroup = groupState.groups.find(g => g.id === gId) || null;
+  updateGroupMembersDatalist();
+});
+
+function updateGroupMembersDatalist() {
+  const dl = document.getElementById('groupMembersList');
+  if (!dl) return;
+  if (!groupState.activeGroup) { dl.innerHTML = ''; return; }
+  const members = groupState.activeGroup.members || [];
+  dl.innerHTML = members.map(m => `<option value="${escapeHtml(m.username)}">`).join('');
+  // Also swap list attribute on all .p-name inputs to use group members
+  document.querySelectorAll('#matchPlayersBody .p-name, #newMatchTeamsContainer .p-name').forEach(inp => {
+    inp.setAttribute('list', 'groupMembersList');
+  });
+}
+
+// ---- Groups modal (open from navbar button) ----
+document.getElementById('btnOpenGroups')?.addEventListener('click', () => {
+  openGroupsModal();
+});
+
+function openGroupsModal() {
+  renderModalInvitesList();
+  renderModalGroupsList();
+  document.getElementById('groupsModal').style.display = 'flex';
+}
+
+function renderModalInvitesList() {
+  const container = document.getElementById('modalInvitesList');
+  if (!container) return;
+  if (groupState.invites.length === 0) { container.innerHTML = ''; return; }
+  container.innerHTML = `
+    <div class="invites-section">
+      <h4 style="font-size:0.85rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);margin-bottom:0.6rem;">Pending Invites</h4>
+      ${groupState.invites.map(inv => `
+        <div class="invite-item">
+          <span class="invite-text">📨 <strong>${escapeHtml(inv.group_name)}</strong> <span style="color:var(--text-muted)">from ${escapeHtml(inv.invited_by_name)}</span></span>
+          <div class="invite-actions">
+            <button class="btn btn-primary btn-sm btn-modal-accept" data-id="${inv.id}">Accept</button>
+            <button class="btn btn-ghost btn-sm btn-modal-decline" data-id="${inv.id}">Decline</button>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+    <hr class="divider">
+  `;
+  container.querySelectorAll('.btn-modal-accept').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await respondInvite(btn.dataset.id, 'accept');
+      renderModalInvitesList();
+      renderModalGroupsList();
+    });
+  });
+  container.querySelectorAll('.btn-modal-decline').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await respondInvite(btn.dataset.id, 'decline');
+      renderModalInvitesList();
+    });
+  });
+}
+
+function renderModalGroupsList() {
+  const list = document.getElementById('modalGroupsList');
+  if (!list) return;
+  if (groupState.groups.length === 0) {
+    list.innerHTML = '<div class="empty-state">No groups yet. Create one above!</div>';
+    return;
+  }
+  list.innerHTML = groupState.groups.map(g => {
+    const memberNames = (g.members || []).map(m => escapeHtml(m.username)).join(', ') || 'No members yet';
+    return `
+      <div class="group-card">
+        <div class="group-card-left">
+          <span class="group-avatar">${escapeHtml(g.name.charAt(0).toUpperCase())}</span>
+          <div>
+            <div class="group-name">${escapeHtml(g.name)}</div>
+            <div class="group-meta">${escapeHtml(memberNames)}</div>
+          </div>
+        </div>
+        <div class="group-card-right">
+          ${g.is_owner
+            ? `<button class="btn btn-secondary btn-sm btn-modal-manage" data-id="${g.id}" data-name="${escapeHtml(g.name)}">⚙️ Manage</button>`
+            : `<button class="btn btn-ghost btn-sm btn-modal-leave" data-id="${g.id}">Leave</button>`
+          }
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  list.querySelectorAll('.btn-modal-manage').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('groupsModal').style.display = 'none';
+      openManageGroupModal(btn.dataset.id, btn.dataset.name);
+    });
+  });
+  list.querySelectorAll('.btn-modal-leave').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await leaveGroup(btn.dataset.id);
+      renderModalGroupsList();
+    });
+  });
+}
+
+// ---- Create group ----
+document.getElementById('btnCreateGroupModal')?.addEventListener('click', () => {
+  document.getElementById('groupsModal').style.display = 'none';
+  document.getElementById('newGroupName').value = '';
+  document.getElementById('createGroupError').style.display = 'none';
+  document.getElementById('createGroupModal').style.display = 'flex';
+});
+
+document.getElementById('btnCreateGroup')?.addEventListener('click', () => {
+  document.getElementById('newGroupName').value = '';
+  document.getElementById('createGroupError').style.display = 'none';
+  document.getElementById('createGroupModal').style.display = 'flex';
+});
+
+document.getElementById('createGroupForm')?.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name   = document.getElementById('newGroupName').value.trim();
+  const errEl  = document.getElementById('createGroupError');
+  errEl.style.display = 'none';
+  try {
+    await api('/groups', { method: 'POST', body: JSON.stringify({ name }) });
+    document.getElementById('createGroupModal').style.display = 'none';
+    await loadGroups();
+    openGroupsModal(); // Re-open groups modal after creating
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+});
+
+// ---- Manage group modal (owner) ----
+function openManageGroupModal(groupId, groupName) {
+  document.getElementById('manageGroupId').value = groupId;
+  document.getElementById('manageGroupTitle').textContent = `⚙️ ${groupName}`;
+  document.getElementById('inviteUsername').value = '';
+  document.getElementById('inviteError').style.display   = 'none';
+  document.getElementById('inviteSuccess').style.display = 'none';
+
+  const group = groupState.groups.find(g => g.id === groupId);
+  renderManageGroupMembers(group);
+  document.getElementById('manageGroupModal').style.display = 'flex';
+}
+
+function renderManageGroupMembers(group) {
+  const container = document.getElementById('manageGroupMembers');
+  if (!container || !group) return;
+  const members = group.members || [];
+  if (members.length === 0) {
+    container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">No members yet. Invite someone below.</div>';
+    return;
+  }
+  container.innerHTML = members.map(m => {
+    const isOwner = m.user_id === group.owner_id;
+    const isSelf  = state.user && m.user_id === state.user.id;
+    return `
+      <div class="member-row">
+        <div class="member-info">
+          <span class="member-avatar">${escapeHtml(m.username.charAt(0).toUpperCase())}</span>
+          <span class="member-name">${escapeHtml(m.username)}</span>
+          ${isOwner ? '<span class="member-badge owner-badge">Owner</span>' : ''}
+        </div>
+        ${(!isOwner && group.is_owner) ? `<button class="btn btn-ghost btn-xs btn-kick-member" data-group="${group.id}" data-user="${m.user_id}" data-name="${escapeHtml(m.username)}" title="Remove from group">✕</button>` : ''}
+        ${(isSelf && !isOwner) ? `<button class="btn btn-ghost btn-xs btn-leave-member" data-group="${group.id}" data-user="${m.user_id}">Leave</button>` : ''}
+      </div>
+    `;
+  }).join('');
+
+  container.querySelectorAll('.btn-kick-member').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { group: gId, user: uId, name } = btn.dataset;
+      if (confirm(`Remove ${name} from the group?`)) {
+        try {
+          await api(`/groups/${gId}/members/${uId}`, { method: 'DELETE' });
+          await loadGroups();
+          const updated = groupState.groups.find(g => g.id === gId);
+          renderManageGroupMembers(updated);
+        } catch (err) { alert(err.message); }
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-leave-member').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      await leaveGroup(btn.dataset.group);
+      document.getElementById('manageGroupModal').style.display = 'none';
+    });
+  });
+}
+
+// ---- Invite by username ----
+document.getElementById('btnSendInvite')?.addEventListener('click', async () => {
+  const groupId  = document.getElementById('manageGroupId').value;
+  const username = document.getElementById('inviteUsername').value.trim();
+  const errEl    = document.getElementById('inviteError');
+  const okEl     = document.getElementById('inviteSuccess');
+  errEl.style.display = 'none';
+  okEl.style.display  = 'none';
+  if (!username) { errEl.textContent = 'Enter a username.'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await api(`/groups/${groupId}/invite`, { method: 'POST', body: JSON.stringify({ username }) });
+    okEl.textContent = `✅ Invite sent to ${res.invited}!`;
+    okEl.style.display = 'block';
+    document.getElementById('inviteUsername').value = '';
+    await loadGroups();
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = 'block';
+  }
+});
+
+// ---- Delete group ----
+document.getElementById('btnDeleteGroup')?.addEventListener('click', async () => {
+  const groupId = document.getElementById('manageGroupId').value;
+  const group   = groupState.groups.find(g => g.id === groupId);
+  if (!confirm(`Delete "${group?.name}"? This cannot be undone.`)) return;
+  try {
+    await api(`/groups/${groupId}`, { method: 'DELETE' });
+    document.getElementById('manageGroupModal').style.display = 'none';
+    await loadGroups();
+  } catch (err) { alert(err.message); }
+});
+
+// ---- Leave group ----
+async function leaveGroup(groupId) {
+  if (!state.user) return;
+  if (!confirm('Leave this group?')) return;
+  try {
+    await api(`/groups/${groupId}/members/${state.user.id}`, { method: 'DELETE' });
+    await loadGroups();
+  } catch (err) { alert(err.message); }
+}
+
+// ---- Hook into initDashboard ----
+// loadGroups is called inside initDashboard after loadGames

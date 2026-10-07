@@ -519,6 +519,187 @@ app.delete('/api/players', async (c) => {
   return c.json({ success: true });
 });
 
+// ----------------------------------------------------
+// 6. GROUPS ROUTES
+// ----------------------------------------------------
+
+// List all groups the current user belongs to (as owner or member), plus pending invites
+app.get('/api/groups', async (c) => {
+  const user = c.get('user')!;
+
+  // Groups where user is owner or accepted member
+  const { results: groups } = await c.env.DB.prepare(`
+    SELECT g.*, u.username as owner_name,
+      (SELECT COUNT(*) FROM group_members gm2 WHERE gm2.group_id = g.id) as member_count
+    FROM groups g
+    JOIN users u ON g.owner_id = u.id
+    WHERE g.owner_id = ?
+       OR g.id IN (SELECT group_id FROM group_members WHERE user_id = ?)
+    ORDER BY g.created_at DESC
+  `).bind(user.id, user.id).all();
+
+  // For each group, get members
+  const groupIds = (groups as any[]).map(g => g.id);
+  let membersByGroup: Record<string, any[]> = {};
+  if (groupIds.length > 0) {
+    const placeholders = groupIds.map(() => '?').join(',');
+    const { results: members } = await c.env.DB.prepare(`
+      SELECT gm.group_id, gm.user_id, u.username
+      FROM group_members gm
+      JOIN users u ON gm.user_id = u.id
+      WHERE gm.group_id IN (${placeholders})
+    `).bind(...groupIds).all();
+    for (const m of members as any[]) {
+      if (!membersByGroup[m.group_id]) membersByGroup[m.group_id] = [];
+      membersByGroup[m.group_id].push({ user_id: m.user_id, username: m.username });
+    }
+  }
+
+  // Pending invites for current user
+  const { results: invites } = await c.env.DB.prepare(`
+    SELECT gi.id, gi.group_id, gi.status, gi.created_at,
+           g.name as group_name, u.username as invited_by_name
+    FROM group_invites gi
+    JOIN groups g ON gi.group_id = g.id
+    JOIN users u ON gi.invited_by = u.id
+    WHERE gi.invited_user_id = ? AND gi.status = 'pending'
+  `).bind(user.id).all();
+
+  const enriched = (groups as any[]).map(g => ({
+    ...g,
+    members: membersByGroup[g.id] || [],
+    is_owner: g.owner_id === user.id,
+  }));
+
+  return c.json({ groups: enriched, invites });
+});
+
+// Create a group
+app.post('/api/groups', async (c) => {
+  const user = c.get('user')!;
+  const body = await c.req.json().catch(() => ({}));
+  const { name } = body;
+  if (!name?.trim()) return c.json({ error: 'Group name is required' }, 400);
+
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO groups (id, name, owner_id) VALUES (?, ?, ?)'
+  ).bind(id, name.trim(), user.id).run();
+
+  // Owner is also automatically a member
+  const memberId = crypto.randomUUID();
+  await c.env.DB.prepare(
+    'INSERT INTO group_members (id, group_id, user_id) VALUES (?, ?, ?)'
+  ).bind(memberId, id, user.id).run();
+
+  return c.json({ group: { id, name: name.trim(), owner_id: user.id } }, 201);
+});
+
+// Delete a group (owner only)
+app.delete('/api/groups/:id', async (c) => {
+  const user = c.get('user')!;
+  const id = c.req.param('id');
+  const group: any = await c.env.DB.prepare('SELECT owner_id FROM groups WHERE id = ?').bind(id).first();
+  if (!group) return c.json({ error: 'Group not found' }, 404);
+  if (group.owner_id !== user.id) return c.json({ error: 'Only the group owner can delete it' }, 403);
+  await c.env.DB.prepare('DELETE FROM groups WHERE id = ?').bind(id).run();
+  return c.json({ success: true });
+});
+
+// Invite a user to a group by username (owner only)
+app.post('/api/groups/:id/invite', async (c) => {
+  const user = c.get('user')!;
+  const groupId = c.req.param('id');
+  const body = await c.req.json().catch(() => ({}));
+  const { username } = body;
+
+  const group: any = await c.env.DB.prepare('SELECT * FROM groups WHERE id = ?').bind(groupId).first();
+  if (!group) return c.json({ error: 'Group not found' }, 404);
+  if (group.owner_id !== user.id) return c.json({ error: 'Only the group owner can invite members' }, 403);
+
+  // Find the user to invite
+  const target: any = await c.env.DB.prepare(
+    'SELECT id, username FROM users WHERE LOWER(username) = ?'
+  ).bind(username.trim().toLowerCase()).first();
+  if (!target) return c.json({ error: `User "${username}" not found` }, 404);
+  if (target.id === user.id) return c.json({ error: 'You cannot invite yourself' }, 400);
+
+  // Check if already a member
+  const alreadyMember = await c.env.DB.prepare(
+    'SELECT id FROM group_members WHERE group_id = ? AND user_id = ?'
+  ).bind(groupId, target.id).first();
+  if (alreadyMember) return c.json({ error: `${target.username} is already in the group` }, 409);
+
+  // Check if already invited
+  const existing = await c.env.DB.prepare(
+    'SELECT id, status FROM group_invites WHERE group_id = ? AND invited_user_id = ?'
+  ).bind(groupId, target.id).first() as any;
+  if (existing && existing.status === 'pending') return c.json({ error: `${target.username} already has a pending invite` }, 409);
+
+  // Re-invite if previously declined
+  if (existing) {
+    await c.env.DB.prepare(
+      'UPDATE group_invites SET status = ?, invited_by = ?, created_at = CURRENT_TIMESTAMP WHERE id = ?'
+    ).bind('pending', user.id, existing.id).run();
+  } else {
+    const inviteId = crypto.randomUUID();
+    await c.env.DB.prepare(
+      'INSERT INTO group_invites (id, group_id, invited_user_id, invited_by, status) VALUES (?, ?, ?, ?, ?)'
+    ).bind(inviteId, groupId, target.id, user.id, 'pending').run();
+  }
+
+  return c.json({ success: true, invited: target.username });
+});
+
+// Accept or decline an invite
+app.put('/api/groups/invites/:inviteId', async (c) => {
+  const user = c.get('user')!;
+  const inviteId = c.req.param('inviteId');
+  const body = await c.req.json().catch(() => ({}));
+  const { action } = body; // 'accept' | 'decline'
+
+  const invite: any = await c.env.DB.prepare(
+    'SELECT * FROM group_invites WHERE id = ? AND invited_user_id = ?'
+  ).bind(inviteId, user.id).first();
+  if (!invite) return c.json({ error: 'Invite not found' }, 404);
+  if (invite.status !== 'pending') return c.json({ error: 'Invite already responded to' }, 400);
+
+  if (action === 'accept') {
+    await c.env.DB.prepare(
+      'UPDATE group_invites SET status = ? WHERE id = ?'
+    ).bind('accepted', inviteId).run();
+    const memberId = crypto.randomUUID();
+    await c.env.DB.prepare(
+      'INSERT OR IGNORE INTO group_members (id, group_id, user_id) VALUES (?, ?, ?)'
+    ).bind(memberId, invite.group_id, user.id).run();
+  } else {
+    await c.env.DB.prepare(
+      'UPDATE group_invites SET status = ? WHERE id = ?'
+    ).bind('declined', inviteId).run();
+  }
+
+  return c.json({ success: true });
+});
+
+// Remove a member from group (owner only, or member leaving)
+app.delete('/api/groups/:id/members/:userId', async (c) => {
+  const user = c.get('user')!;
+  const { id: groupId, userId } = c.req.param();
+
+  const group: any = await c.env.DB.prepare('SELECT owner_id FROM groups WHERE id = ?').bind(groupId).first();
+  if (!group) return c.json({ error: 'Group not found' }, 404);
+
+  const isSelf = userId === user.id;
+  const isOwner = group.owner_id === user.id;
+  if (!isSelf && !isOwner) return c.json({ error: 'Permission denied' }, 403);
+  if (isOwner && isSelf) return c.json({ error: 'Owner cannot leave. Delete the group instead.' }, 400);
+
+  await c.env.DB.prepare(
+    'DELETE FROM group_members WHERE group_id = ? AND user_id = ?'
+  ).bind(groupId, userId).run();
+  return c.json({ success: true });
+});
+
 // Fallback to static assets (HTML/CSS/JS)
 app.get('*', async (c) => {
   if (c.env.ASSETS) {
